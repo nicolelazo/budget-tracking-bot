@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "PowerShell(node --version)",
+      "PowerShell(Start-Process \\(Resolve-Path \"index.html\"\\).Path)",
+      "PowerShell(Start-Process cmd -ArgumentList '/c','node server.js' -WindowStyle Hidden; Start-Sleep 1; $r = Invoke-WebRequest -UseBasicParsing http://localhost:8917 ; \"HTTP $\\($r.StatusCode\\), $\\($r.RawContentLength\\) bytes\"; \\($r.Content -match 'tab-gmail'\\) ; \\($r.Content -match 'gsi/client'\\))",
+      "PowerShell(Start-Process \"http://localhost:8917\")",
+      "mcp__claude_ai_Gmail__search_threads"
+    ]
+  }
+}

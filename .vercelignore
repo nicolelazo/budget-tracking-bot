@@ -1,0 +1,5 @@
+# Only index.html needs to be deployed — everything else is local tooling/docs
+server.js
+start-dashboard.bat
+bdt.md
+*.md

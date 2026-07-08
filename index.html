@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Liquidation &amp; Budget Manager Bot</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  .tab-btn.active{background:#1e293b;color:#fff}
+  .field-review{background:#fefce8;border-color:#facc15}
+  .drop-active{border-color:#6366f1;background:#eef2ff}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+<!-- ===== TOP BAR ===== -->
+<header class="bg-slate-900 text-white flex items-center gap-4 px-5 py-3 shrink-0">
+  <div class="flex items-center gap-2 font-semibold text-lg">
+    <i data-lucide="wallet" class="w-6 h-6 text-indigo-400"></i>
+    <span>Liquidation &amp; Budget Manager Bot</span>
+  </div>
+  <div class="ml-auto flex items-center gap-2 relative group">
+    <i data-lucide="key-round" class="w-4 h-4 text-slate-400"></i>
+    <input id="apiKey" type="password" placeholder="Anthropic API Key (sk-ant-...)"
+      class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <button id="saveKey" class="bg-indigo-600 hover:bg-indigo-500 text-sm px-3 py-1.5 rounded-lg">Save</button>
+    <div class="absolute top-full right-0 mt-2 hidden group-hover:block bg-slate-800 text-xs text-slate-300 rounded-lg px-3 py-2 w-64 z-50 shadow-lg">
+      <i data-lucide="shield-alert" class="w-3 h-3 inline"></i> Key is stored only in this browser (localStorage). Do not use on shared computers.
+    </div>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+
+<!-- ===== SIDEBAR ===== -->
+<nav class="w-60 bg-slate-900 text-slate-300 flex flex-col py-4 shrink-0">
+  <button class="tab-btn active flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dashboard Overview</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="receipt"><i data-lucide="scan-line" class="w-4 h-4"></i>Receipt Image Extractor</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="email"><i data-lucide="mail-search" class="w-4 h-4"></i>Email Extractor</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail"><i data-lucide="inbox" class="w-4 h-4"></i>Gmail Inbox<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="budget"><i data-lucide="piggy-bank" class="w-4 h-4"></i>Budget Tracker</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="history"><i data-lucide="history" class="w-4 h-4"></i>Logs / History</button>
+  <div class="mt-auto px-5 text-[10px] text-slate-500">R&amp;D Prototype v2 · claude-opus-4-8</div>
+</nav>
+
+<!-- ===== MAIN ===== -->
+<main class="flex-1 overflow-y-auto p-6">
+
+  <!-- ============ TAB: OVERVIEW ============ -->
+  <section id="tab-overview" class="tab-panel">
+    <h1 class="text-2xl font-bold mb-5">Dashboard Overview</h1>
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6" id="metricCards"></div>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl shadow p-5">
+        <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-indigo-500"></i>Recent Activity</h2>
+        <div id="activityFeed" class="space-y-2 text-sm"></div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5">
+        <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-indigo-500"></i>Top Chapters by Liquidated Amount</h2>
+        <div id="topChapters" class="space-y-3 text-sm"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: RECEIPT ============ -->
+  <section id="tab-receipt" class="tab-panel hidden">
+    <h1 class="text-2xl font-bold mb-1">Receipt Image Extractor</h1>
+    <p class="text-sm text-slate-500 mb-5">Drop receipt images or PDFs. Files are queued and processed one by one via Claude vision.</p>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div>
+        <div id="dropZone" class="border-2 border-dashed border-slate-300 rounded-xl bg-white p-8 text-center cursor-pointer transition">
+          <i data-lucide="upload-cloud" class="w-10 h-10 mx-auto text-slate-400"></i>
+          <p class="mt-2 text-sm text-slate-600">Drag &amp; drop receipts here, or <span class="text-indigo-600 font-medium">browse</span></p>
+          <p class="text-xs text-slate-400 mt-1">PNG · JPG · WEBP · PDF — multiple files supported</p>
+          <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple class="hidden">
+        </div>
+        <div class="mt-3 bg-white rounded-xl shadow p-4">
+          <p class="text-xs text-slate-500 mb-2 flex items-center gap-1"><i data-lucide="link" class="w-3.5 h-3.5"></i>Or paste a <b>Google Drive link</b> — best for iPhone/HEIC photos: upload to Drive first, then paste the share link here</p>
+          <div class="flex gap-2">
+            <input id="driveLink" placeholder="https://drive.google.com/file/d/..." class="flex-1 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <button id="fetchDrive" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm whitespace-nowrap">Fetch &amp; Extract</button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1.5">Public "anyone with link" files work right away. Private files need Google connected (Gmail Inbox tab). The link is auto-filled into the Gdrive Link column.</p>
+        </div>
+        <div id="queueList" class="mt-4 space-y-2"></div>
+        <div id="previewBox" class="mt-4 bg-white rounded-xl shadow p-3 hidden">
+          <p class="text-xs text-slate-500 mb-2" id="previewName"></p>
+          <div class="overflow-auto max-h-96 flex justify-center bg-slate-50 rounded-lg">
+            <img id="previewImg" class="max-w-full cursor-zoom-in" onclick="this.classList.toggle('max-w-full')">
+            <div id="previewPdf" class="hidden py-16 text-slate-400 text-sm flex flex-col items-center"><i data-lucide="file-text" class="w-12 h-12"></i>PDF document (no thumbnail)</div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5">
+        <h2 class="font-semibold mb-3">Extracted Fields (17 columns)</h2>
+        <div id="form-r" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        <div class="mt-4 flex gap-3 flex-wrap">
+          <button id="copyLiqR" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy Row for Spreadsheet</button>
+          <button class="copyHeader text-xs text-indigo-600 underline">Copy Header Row</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: EMAIL ============ -->
+  <section id="tab-email" class="tab-panel hidden">
+    <h1 class="text-2xl font-bold mb-1">Email Extractor</h1>
+    <p class="text-sm text-slate-500 mb-5">Paste the raw body of a system-generated email, choose its type, and process.</p>
+    <div class="flex gap-2 mb-4">
+      <button id="modeLiq" class="emailMode bg-slate-900 text-white px-4 py-2 rounded-lg text-sm">Liquidation Email</button>
+      <button id="modeCA" class="emailMode bg-white border border-slate-300 px-4 py-2 rounded-lg text-sm">CA Request Email</button>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl shadow p-5 flex flex-col">
+        <textarea id="emailBody" rows="16" placeholder="Paste email text here..." class="w-full border border-slate-300 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1"></textarea>
+        <button id="processEmail" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 self-start"><i data-lucide="sparkles" class="w-4 h-4"></i>Process Email</button>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5">
+        <div id="emailLiqPane">
+          <h2 class="font-semibold mb-3">Extracted Fields (17 columns)</h2>
+          <div id="form-e" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+          <div class="mt-4 flex gap-3 flex-wrap">
+            <button id="copyLiqE" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy Row for Spreadsheet</button>
+            <button class="copyHeader text-xs text-indigo-600 underline">Copy Header Row</button>
+          </div>
+        </div>
+        <div id="emailCAPane" class="hidden">
+          <h2 class="font-semibold mb-3">CA Request Fields (8 columns)</h2>
+          <div id="form-c" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+          <div class="mt-4">
+            <button id="copyCA" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy CA Row</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: GMAIL ============ -->
+  <section id="tab-gmail" class="tab-panel hidden">
+    <h1 class="text-2xl font-bold mb-1">Gmail Inbox — Auto-Detect Form Emails</h1>
+    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests — no more pasting email bodies.</p>
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="bg-white rounded-xl shadow p-5 space-y-3">
+        <h2 class="font-semibold flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-indigo-500"></i>Connection Settings</h2>
+        <label class="block"><span class="text-xs text-slate-500">Google OAuth Client ID</span>
+          <input id="gClientId" placeholder="xxxxx.apps.googleusercontent.com" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+        <label class="block"><span class="text-xs text-slate-500">Gmail search query</span>
+          <input id="gQuery" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono"></label>
+        <div id="gPresets" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex gap-2">
+          <button id="gSaveSettings" class="border border-slate-300 px-3 py-1.5 rounded-lg text-sm">Save</button>
+          <button id="gConnect" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="plug-zap" class="w-4 h-4"></i>Connect Google</button>
+        </div>
+        <p id="gStatus" class="text-xs"><span class="text-slate-400">&#9679; Not connected</span></p>
+        <label class="flex items-center gap-2 text-sm pt-2 border-t border-slate-100">
+          <input id="gAuto" type="checkbox" class="accent-indigo-600">
+          Auto-process new emails (checks every 2 min)
+        </label>
+        <div class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
+          <b>One-time setup:</b> Google Cloud Console &rarr; enable <b>Gmail API</b> and <b>Google Drive API</b> &rarr; OAuth consent screen (add each team member's email as a test user) &rarr; create <b>OAuth Client ID (Web application)</b> and add <u>every URL you open this app from</u> as an authorized JavaScript origin — e.g. <code>http://localhost:8917</code> and <code>https://your-app.vercel.app</code>.<br><br>
+          This one connection powers both the Gmail inbox here and private Google Drive receipt links in the Receipt tab.<br><br>
+          <b>Running locally?</b> Open via <code>start-dashboard.bat</code> — Google sign-in does not work from a file:// page. On a deployed URL (Vercel) it works directly.
+        </div>
+      </div>
+      <div class="lg:col-span-2 bg-white rounded-xl shadow overflow-hidden self-start">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+          <h2 class="font-semibold flex items-center gap-2"><i data-lucide="inbox" class="w-4 h-4 text-indigo-500"></i>Matching Emails</h2>
+          <button id="gRefresh" class="text-sm text-indigo-600 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Refresh</button>
+        </div>
+        <div id="gInboxRows" class="divide-y divide-slate-100"></div>
+        <div id="gInboxEmpty" class="p-8 text-center text-slate-400 text-sm">Connect Gmail to load form notification emails.</div>
+        <button id="gLoadOlder" class="hidden w-full py-3 text-sm text-indigo-600 border-t border-slate-100 hover:bg-slate-50">Load older submissions&hellip;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: BUDGET ============ -->
+  <section id="tab-budget" class="tab-panel hidden">
+    <div class="flex items-center justify-between mb-5">
+      <h1 class="text-2xl font-bold">Budget Tracker</h1>
+      <button id="addBudget" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i>Add Allocation</button>
+    </div>
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left">
+          <tr><th class="p-3">Chapter</th><th class="p-3">HQ Budget Category</th><th class="p-3 text-right">Allocated (PHP)</th><th class="p-3 text-right">Spent</th><th class="p-3 text-right">Remaining</th><th class="p-3 w-48">Utilization</th><th class="p-3"></th></tr>
+        </thead>
+        <tbody id="budgetRows"></tbody>
+      </table>
+      <div id="budgetEmpty" class="p-8 text-center text-slate-400 text-sm hidden">No allocations yet. Add a chapter allocation to start tracking.</div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: HISTORY ============ -->
+  <section id="tab-history" class="tab-panel hidden">
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <h1 class="text-2xl font-bold">Extraction Logs &amp; History</h1>
+      <div class="flex gap-2 flex-wrap">
+        <input id="histSearch" placeholder="Search..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-52">
+        <select id="histType" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All types</option><option>Image</option><option>Email</option><option>CA Request</option></select>
+        <select id="histStatus" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All statuses</option><option>Success</option><option>Flagged</option></select>
+        <button id="exportCsv" class="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i>Export CSV <span id="selCount" class="hidden bg-indigo-500 text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
+        <button id="delSelected" class="hidden bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i>Delete Selected</button>
+        <button id="clearAll" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-sm">Clear All</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left">
+          <tr><th class="p-3 w-8"><input id="histSelAll" type="checkbox" class="accent-indigo-600" title="Select all (filtered)"></th><th class="p-3">Timestamp</th><th class="p-3">Chapter</th><th class="p-3">Name</th><th class="p-3">Invoice #</th><th class="p-3 text-right">Amount</th><th class="p-3">Type</th><th class="p-3">Status</th><th class="p-3" title="Whether this entry counts toward the dashboard finance report and budget totals">In report</th><th class="p-3"></th></tr>
+        </thead>
+        <tbody id="histRows"></tbody>
+      </table>
+      <div id="histEmpty" class="p-8 text-center text-slate-400 text-sm hidden">No entries yet.</div>
+    </div>
+  </section>
+</main>
+</div>
+
+<!-- ===== TOASTS / MODAL ===== -->
+<div id="toasts" class="fixed bottom-5 right-5 space-y-2 z-50 w-96"></div>
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" id="modalBody"></div>
+</div>
+
+<script>
+/* ================= STATE ================= */
+const LS = { key:'anthropic_api_key', hist:'liquidation_history', bud:'chapter_budgets',
+  gcid:'google_client_id', gq:'gmail_query', gproc:'gmail_processed_ids', gauto:'gmail_auto',
+  popts:'particulars_options' };
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+let hist = load(LS.hist, []);
+let budgets = load(LS.bud, []);
+let emailMode = 'liq';
+let queue = [];
+
+const LIQ_FIELDS = [
+  ['item_count','Item Count'], ['invoice_date','Invoice Date'], ['chapter','Chapter'],
+  ['hq_budget_allocation_category','HQ Budget Allocation category'], ['event_program_name','Event/Program Name'],
+  ['representative','Chapter or Program Representative'], ['establishment_name','Establishment Name'],
+  ['establishment_tin','Establishment TIN'], ['establishment_address','Establishment Address'],
+  ['invoice_number','Invoice #'], ['particulars','Particulars'],
+  ['others_specify','If Others please specify (tokens, merch, etc)'], ['amount','Amount'],
+  ['vat_excl','VAT Excl.'], ['vat','VAT'], ['vat_incl','VAT Incl.'], ['gdrive_link','Gdrive Link of the Invoice'],
+];
+const CA_FIELDS = [
+  ['request_date','Request Date'], ['chapter','Chapter'], ['requestor_name','Requestor Name'],
+  ['event_program_name','Event/Program Name'], ['purpose','Purpose'], ['amount_requested','Amount Requested'],
+  ['date_needed','Date Needed'], ['liquidation_due_date','Liquidation Due Date'],
+];
+
+/* ================= HELPERS ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g,'')); return isNaN(n) ? null : n; };
+const php = n => 'PHP ' + (n ?? 0).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const icons = () => lucide.createIcons();
+
+function toast(msg, kind='success'){
+  const colors = { success:'bg-emerald-600', error:'bg-red-600', warn:'bg-amber-500', info:'bg-slate-800' };
+  const el = document.createElement('div');
+  el.className = `${colors[kind]} text-white text-sm px-4 py-3 rounded-lg shadow-lg`;
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 5500);
+}
+
+/* ================= FORMS ================= */
+/* Particulars dropdown options — mirror the data-validation list in the master sheet.
+   Placeholder defaults; edit via the 'edit options' link next to the Particulars field. */
+const PART_DEFAULT = ['Food & Meals','Transportation','Accommodation','Venue Rental','Supplies & Materials',
+  'Printing & Reproduction','Tokens','Merchandise','Communication & Load','Registration Fees','Honorarium','Others'];
+let partOpts = load(LS.popts, PART_DEFAULT);
+
+function buildForm(containerId, fields, prefix){
+  $(containerId).innerHTML = fields.map(([k,label]) => {
+    const wide = ['particulars','establishment_address','purpose'].includes(k) ? 'md:col-span-2' : '';
+    if (k === 'particulars') return `
+    <label class="block ${wide}">
+      <span class="text-xs text-slate-500 flex items-center gap-2">${esc(label)}
+        <button type="button" class="editPartOpts text-indigo-600 text-[10px] underline">edit options</button></span>
+      <select id="${prefix}${k}" data-key="${k}" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value=""></option>${partOpts.map(o => `<option>${esc(o)}</option>`).join('')}
+      </select>
+    </label>`;
+    return `
+    <label class="block ${wide}">
+      <span class="text-xs text-slate-500">${esc(label)}</span>
+      <input id="${prefix}${k}" data-key="${k}" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </label>`;
+  }).join('');
+}
+function wireForm(prefix, fields){
+  fields.forEach(([k]) => $(prefix+k).addEventListener('input', e => e.target.classList.remove('field-review')));
+  const amt = $(prefix+'amount');
+  if (amt) amt.addEventListener('input', () => recalcVAT(prefix));
+}
+function mountForms(preserve){
+  [['form-r', LIQ_FIELDS, 'r_'], ['form-e', LIQ_FIELDS, 'e_'], ['form-c', CA_FIELDS, 'c_']].forEach(([c, fields, p]) => {
+    const vals = preserve ? getForm(p, fields) : null;
+    buildForm(c, fields, p);
+    if (vals) fields.forEach(([k]) => $(p+k).value = vals[k] ?? '');
+    wireForm(p, fields);
+  });
+}
+mountForms(false);
+
+function getForm(prefix, fields){ const o = {}; fields.forEach(([k]) => o[k] = $(prefix+k).value.trim()); return o; }
+function setForm(prefix, fields, data){
+  fields.forEach(([k]) => {
+    const el = $(prefix+k);
+    el.value = data[k] ?? '';
+    el.classList.toggle('field-review', !String(data[k] ?? '').trim());
+  });
+}
+/* Edit the Particulars dropdown options (kept in sync with the master sheet) */
+document.addEventListener('click', e => { if (e.target.classList.contains('editPartOpts')) partOptsModal(); });
+function partOptsModal(){
+  openModal(`<h2 class="font-bold text-lg mb-2">Particulars Options</h2>
+    <p class="text-xs text-slate-500 mb-3">One option per line — keep this list identical to the Particulars dropdown in the master sheet. Claude will only ever pick from these.</p>
+    <textarea id="m_popts" rows="12" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">${esc(partOpts.join('\n'))}</textarea>
+    <div class="mt-4 flex gap-2 justify-end">
+      <button onclick="closeModal()" class="px-4 py-2 text-sm border border-slate-300 rounded-lg">Cancel</button>
+      <button id="m_popts_save" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg">Save</button>
+    </div>`);
+  $('m_popts_save').addEventListener('click', () => {
+    const opts = $('m_popts').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!opts.length) return toast('Add at least one option.', 'warn');
+    partOpts = opts; save(LS.popts, partOpts);
+    mountForms(true); closeModal(); toast('Particulars options updated.');
+  });
+}
+
+/* VAT math is deterministic JS — overrides whatever the model returns */
+function recalcVAT(prefix){
+  const amt = num($(prefix+'amount').value);
+  if (amt === null) return;
+  const incl = Math.round(amt * 100) / 100;
+  const excl = Math.round((amt / 1.12) * 100) / 100;
+  const vat  = Math.round((incl - excl) * 100) / 100;
+  $(prefix+'vat_incl').value = incl.toFixed(2);
+  $(prefix+'vat_excl').value = excl.toFixed(2);
+  $(prefix+'vat').value = vat.toFixed(2);
+  ['vat_incl','vat_excl','vat'].forEach(k => $(prefix+k).classList.remove('field-review'));
+}
+
+/* ================= CLAUDE API ================= */
+const propFor = (k, label) => k === 'particulars'
+  ? { type:'string', enum:['', ...partOpts], description: label + ' — must be exactly one of the allowed options, or "" if uncertain' }
+  : { type:'string', description: label };
+const jsonSchema = fields => ({
+  type: 'object',
+  properties: Object.fromEntries(fields.map(([k,label]) => [k, propFor(k, label)])),
+  required: fields.map(([k]) => k),
+  additionalProperties: false,
+});
+
+const LIQ_SYSTEM = `You are a meticulous finance encoder for a nonprofit's chapter liquidation process.
+Extract data from the provided receipt/invoice (image, PDF, or email text) into the exact JSON schema given.
+Rules:
+- If a value cannot be determined with 100% certainty, return an empty string "" for that field. Never guess or invent placeholders.
+- Normalize invoice_date to YYYY-MM-DD when confidently readable.
+- Normalize establishment_tin to digits with dashes (e.g. 123-456-789-000) when confidently readable.
+- amount is the total amount paid, digits and decimal point only (no currency symbol, no commas).
+- Leave vat_excl, vat, and vat_incl as empty strings — they are computed by the application.
+- particulars must be exactly one of the allowed options in the schema — pick the closest category for what was purchased. If none fits, use 'Others' and describe the item in others_specify. If truly uncertain, return "".
+- gdrive_link: only fill if a URL is explicitly present in the source; otherwise "".`;
+
+const CA_SYSTEM = `You are a meticulous finance encoder. Extract data from the provided Cash Advance (CA) request email into the exact JSON schema given.
+Rules:
+- If a value cannot be determined with 100% certainty, return an empty string "". Never guess.
+- Normalize all dates to YYYY-MM-DD when confidently readable.
+- amount_requested is digits and decimal point only (no currency symbol, no commas).`;
+
+async function callClaude(userContent, system, schema){
+  const key = (localStorage.getItem(LS.key) || '').trim();
+  if (!key) { toast('Enter and save your Anthropic API key in the top bar first.', 'error'); throw new Error('no-key'); }
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-8',
+        max_tokens: 4096,
+        system,
+        messages: [{ role:'user', content: userContent }],
+        output_config: { format: { type:'json_schema', schema } },
+      }),
+    });
+  } catch { toast('Network error — check your internet connection.', 'error'); throw new Error('network'); }
+  if (!res.ok) {
+    const msg = { 401:'Invalid API key — check the key in the top bar.', 403:'API key lacks permission.',
+      429:'Rate limited — wait a moment and retry.', 529:'API overloaded — retry shortly.' }[res.status]
+      || `API error ${res.status}.`;
+    let detail=''; try { detail = (await res.json()).error?.message || ''; } catch {}
+    toast(msg + (detail ? ' ' + detail.slice(0,120) : ''), 'error');
+    throw new Error('api-' + res.status);
+  }
+  const data = await res.json();
+  const text = (data.content || []).find(b => b.type === 'text')?.text;
+  if (!text) { toast('Empty response from Claude.', 'error'); throw new Error('empty'); }
+  return JSON.parse(text);
+}
+
+/* ================= RECEIPT QUEUE ================= */
+const dz = $('dropZone');
+dz.addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value=''; });
+['dragover','dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drop-active'); }));
+['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drop-active'); }));
+dz.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
+
+function addFiles(files){
+  const ok = files.filter(f => /^(image\/(png|jpeg|webp)|application\/pdf)$/.test(f.type));
+  if (ok.length < files.length) toast('Some files were skipped (unsupported type).', 'warn');
+  ok.forEach(f => queue.push({ id: uid(), file: f, status: 'queued', data: null, url: URL.createObjectURL(f) }));
+  renderQueue(); processQueue();
+}
+
+let processing = false;
+async function processQueue(){
+  if (processing) return;
+  processing = true;
+  for (const item of queue) {
+    if (item.status !== 'queued') continue;
+    item.status = 'processing'; renderQueue();
+    try {
+      const b64 = await fileToB64(item.file);
+      const block = item.file.type === 'application/pdf'
+        ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 } }
+        : { type:'image', source:{ type:'base64', media_type:item.file.type, data:b64 } };
+      const data = await callClaude(
+        [ block, { type:'text', text:'Extract the liquidation fields from this receipt/invoice.' } ],
+        LIQ_SYSTEM, jsonSchema(LIQ_FIELDS));
+      if (item.gdriveLink) data.gdrive_link = item.gdriveLink;
+      item.data = data; item.status = 'done';
+      loadQueueItem(item);
+      toast(`Extracted: ${item.file.name}`);
+    } catch (err) {
+      item.status = 'failed'; item.error = err.message;
+      if (err.message === 'no-key') { processing = false; renderQueue(); return; }
+    }
+    renderQueue();
+  }
+  processing = false;
+}
+
+const fileToB64 = file => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result.split(',')[1]);
+  r.onerror = rej;
+  r.readAsDataURL(file);
+});
+
+function renderQueue(){
+  $('queueList').innerHTML = queue.map(it => {
+    const badge = { queued:'bg-slate-200 text-slate-600', processing:'bg-indigo-100 text-indigo-700 animate-pulse',
+      done:'bg-emerald-100 text-emerald-700', failed:'bg-red-100 text-red-700' }[it.status];
+    return `<div class="bg-white rounded-lg shadow-sm px-3 py-2 flex items-center gap-3 text-sm ${it.status==='done'?'cursor-pointer hover:bg-indigo-50':''}" onclick="loadQueueById('${it.id}')">
+      <i data-lucide="${it.file.type==='application/pdf'?'file-text':'image'}" class="w-4 h-4 text-slate-400 shrink-0"></i>
+      <span class="truncate flex-1">${esc(it.file.name)}</span>
+      <span class="text-[11px] px-2 py-0.5 rounded-full ${badge}">${it.status}</span>
+    </div>`;
+  }).join('');
+  icons();
+}
+window.loadQueueById = id => { const it = queue.find(q => q.id === id); if (it && it.data) loadQueueItem(it); };
+
+function loadQueueItem(item){
+  setForm('r_', LIQ_FIELDS, item.data);
+  recalcVAT('r_');
+  $('previewBox').classList.remove('hidden');
+  $('previewName').textContent = item.file.name;
+  const isPdf = item.file.type === 'application/pdf';
+  $('previewImg').classList.toggle('hidden', isPdf);
+  $('previewPdf').classList.toggle('hidden', !isPdf);
+  if (!isPdf) $('previewImg').src = item.url;
+  icons();
+}
+
+/* ================= EMAIL EXTRACTOR ================= */
+$('modeLiq').addEventListener('click', () => setEmailMode('liq'));
+$('modeCA').addEventListener('click', () => setEmailMode('ca'));
+function setEmailMode(m){
+  emailMode = m;
+  $('modeLiq').className = 'emailMode px-4 py-2 rounded-lg text-sm ' + (m==='liq' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-300');
+  $('modeCA').className  = 'emailMode px-4 py-2 rounded-lg text-sm ' + (m==='ca'  ? 'bg-slate-900 text-white' : 'bg-white border border-slate-300');
+  $('emailLiqPane').classList.toggle('hidden', m !== 'liq');
+  $('emailCAPane').classList.toggle('hidden', m !== 'ca');
+}
+
+$('processEmail').addEventListener('click', async () => {
+  const body = $('emailBody').value.trim();
+  if (!body) return toast('Paste the email body first.', 'warn');
+  const btn = $('processEmail');
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>Processing...'; icons();
+  try {
+    if (emailMode === 'liq') {
+      const data = await callClaude([{type:'text', text:'Extract liquidation fields from this email:\n\n' + body}], LIQ_SYSTEM, jsonSchema(LIQ_FIELDS));
+      setForm('e_', LIQ_FIELDS, data); recalcVAT('e_');
+    } else {
+      const data = await callClaude([{type:'text', text:'Extract CA request fields from this email:\n\n' + body}], CA_SYSTEM, jsonSchema(CA_FIELDS));
+      setForm('c_', CA_FIELDS, data);
+    }
+    toast('Email processed — review highlighted fields.');
+  } catch {}
+  btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" class="w-4 h-4"></i>Process Email'; icons();
+});
+
+/* ================= AUDIT FLAG ENGINE ================= */
+function auditLiq(f){
+  const flags = [];
+  const amt = num(f.amount);
+  if (f.invoice_number && f.establishment_tin &&
+      hist.some(h => h.data?.invoice_number === f.invoice_number && h.data?.establishment_tin === f.establishment_tin))
+    flags.push('Possible duplicate: same Invoice # + TIN already in history');
+  if (amt === null || amt <= 0) flags.push('Amount is missing, zero, or invalid');
+  if (amt !== null) {
+    const excl = Math.round((amt/1.12)*100)/100, vat = Math.round((amt-excl)*100)/100;
+    if (Math.abs((num(f.vat_incl) ?? -1) - amt) > 0.02 ||
+        Math.abs((num(f.vat_excl) ?? -1) - excl) > 0.02 ||
+        Math.abs((num(f.vat) ?? -1) - vat) > 0.02)
+      flags.push('VAT fields inconsistent with Amount / 1.12 formula');
+  }
+  ['chapter','invoice_date','establishment_name'].forEach(k => { if (!f[k]) flags.push(`Required field empty: ${k.replace(/_/g,' ')}`); });
+  if (f.invoice_date && f.invoice_date > new Date().toISOString().slice(0,10)) flags.push('Invoice Date is in the future');
+  return flags;
+}
+function auditCA(f){
+  const flags = [];
+  if ((num(f.amount_requested) ?? 0) <= 0) flags.push('Amount Requested is missing or invalid');
+  ['chapter','requestor_name'].forEach(k => { if (!f[k]) flags.push(`Required field empty: ${k.replace(/_/g,' ')}`); });
+  return flags;
+}
+
+/* ================= COPY & COMMIT ================= */
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+}
+
+/* VAT recompute directly on a data object (used by Gmail auto-processing) */
+function computeVatInto(f){
+  const amt = num(f.amount);
+  if (amt === null) return;
+  const incl = Math.round(amt * 100) / 100;
+  const excl = Math.round((amt / 1.12) * 100) / 100;
+  f.vat_incl = incl.toFixed(2);
+  f.vat_excl = excl.toFixed(2);
+  f.vat = (Math.round((incl - excl) * 100) / 100).toFixed(2);
+}
+
+async function commitLiqEntry(f, type, copy = true){
+  computeVatInto(f);
+  if (copy) await copyText(LIQ_FIELDS.map(([k]) => f[k]).join('\t'));
+  const flags = auditLiq(f);
+  hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.establishment_name,
+    invoice: f.invoice_number, amount: num(f.amount) ?? 0, type, status: flags.length ? 'Flagged' : 'Success',
+    flags, resolved: false, included: true, data: f });
+  save(LS.hist, hist);
+  const b = budgets.find(x => x.chapter.toLowerCase() === (f.chapter||'').toLowerCase());
+  if (b) {
+    const spent = spentFor(b.chapter);
+    if (spent > b.allocated) toast(`⚠ ${b.chapter} is now OVER its allocation (${php(spent)} of ${php(b.allocated)})`, 'error');
+  }
+  renderAll();
+  return flags;
+}
+
+async function commitLiq(prefix, type){
+  recalcVAT(prefix);
+  const f = getForm(prefix, LIQ_FIELDS);
+  const flags = await commitLiqEntry(f, type);
+  toast(flags.length ? `Row copied but FLAGGED: ${flags[0]}` : 'Row copied — paste into the master sheet.', flags.length ? 'warn' : 'success');
+}
+$('copyLiqR').addEventListener('click', () => commitLiq('r_', 'Image'));
+$('copyLiqE').addEventListener('click', () => commitLiq('e_', 'Email'));
+
+async function commitCAEntry(f, copy = true){
+  if (copy) await copyText(CA_FIELDS.map(([k]) => f[k]).join('\t'));
+  const flags = auditCA(f);
+  hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.requestor_name,
+    invoice: '', amount: num(f.amount_requested) ?? 0, type: 'CA Request',
+    status: flags.length ? 'Flagged' : 'Success', flags, resolved: false, included: true, data: f });
+  save(LS.hist, hist); renderAll();
+  return flags;
+}
+
+$('copyCA').addEventListener('click', async () => {
+  const f = getForm('c_', CA_FIELDS);
+  const flags = await commitCAEntry(f);
+  toast(flags.length ? `CA row copied but FLAGGED: ${flags[0]}` : 'CA row copied — paste into the CA tracker.', flags.length ? 'warn' : 'success');
+});
+
+document.querySelectorAll('.copyHeader').forEach(b => b.addEventListener('click', async () => {
+  await copyText(LIQ_FIELDS.map(([,l]) => l).join('\t'));
+  toast('Header row copied.');
+}));
+
+/* ================= BUDGET TRACKER ================= */
+/* Entries excluded from the finance report don't count toward any money totals.
+   Entries saved before this feature existed have no 'included' key → treated as included. */
+const inReport = h => h.included !== false;
+const spentFor = chapter => hist
+  .filter(h => inReport(h) && h.type !== 'CA Request' && (h.chapter||'').toLowerCase() === chapter.toLowerCase())
+  .reduce((s, h) => s + (h.amount || 0), 0);
+
+function renderBudgets(){
+  $('budgetEmpty').classList.toggle('hidden', budgets.length > 0);
+  $('budgetRows').innerHTML = budgets.map(b => {
+    const spent = spentFor(b.chapter), rem = b.allocated - spent;
+    const pct = b.allocated > 0 ? Math.min(100, spent / b.allocated * 100) : 0;
+    const bar = pct > 95 ? 'bg-red-500' : pct > 70 ? 'bg-amber-400' : 'bg-emerald-500';
+    return `<tr class="border-t border-slate-100">
+      <td class="p-3 font-medium">${esc(b.chapter)}</td><td class="p-3">${esc(b.category)}</td>
+      <td class="p-3 text-right">${php(b.allocated)}</td><td class="p-3 text-right">${php(spent)}</td>
+      <td class="p-3 text-right ${rem < 0 ? 'text-red-600 font-semibold' : ''}">${php(rem)}</td>
+      <td class="p-3"><div class="bg-slate-100 rounded-full h-2.5"><div class="${bar} h-2.5 rounded-full" style="width:${pct}%"></div></div><span class="text-[10px] text-slate-400">${pct.toFixed(0)}% used</span></td>
+      <td class="p-3 text-right whitespace-nowrap">
+        <button class="text-indigo-600 text-xs mr-2" onclick="editBudget('${b.id}')">Edit</button>
+        <button class="text-red-500 text-xs" onclick="delBudget('${b.id}')">Delete</button>
+      </td></tr>`;
+  }).join('');
+}
+$('addBudget').addEventListener('click', () => budgetModal());
+window.editBudget = id => budgetModal(budgets.find(b => b.id === id));
+window.delBudget = id => { if (confirm('Delete this allocation row?')) { budgets = budgets.filter(b => b.id !== id); save(LS.bud, budgets); renderBudgets(); } };
+
+function budgetModal(b){
+  openModal(`<h2 class="font-bold text-lg mb-4">${b ? 'Edit' : 'Add'} Allocation</h2>
+    <label class="block mb-3"><span class="text-xs text-slate-500">Chapter</span>
+      <input id="m_chapter" value="${esc(b?.chapter||'')}" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+    <label class="block mb-3"><span class="text-xs text-slate-500">HQ Budget Allocation category</span>
+      <input id="m_category" value="${esc(b?.category||'')}" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+    <label class="block mb-5"><span class="text-xs text-slate-500">Allocated Amount (PHP)</span>
+      <input id="m_alloc" type="number" step="0.01" value="${b?.allocated ?? ''}" class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+    <div class="flex gap-2 justify-end">
+      <button onclick="closeModal()" class="px-4 py-2 text-sm border border-slate-300 rounded-lg">Cancel</button>
+      <button id="m_save" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg">Save</button>
+    </div>`);
+  $('m_save').addEventListener('click', () => {
+    const chapter = $('m_chapter').value.trim(), category = $('m_category').value.trim(), alloc = num($('m_alloc').value);
+    if (!chapter || alloc === null || alloc < 0) return toast('Chapter and a valid amount are required.', 'warn');
+    if (b) Object.assign(b, { chapter, category, allocated: alloc });
+    else budgets.push({ id: uid(), chapter, category, allocated: alloc });
+    save(LS.bud, budgets); renderBudgets(); closeModal();
+  });
+}
+
+/* ================= HISTORY ================= */
+['histSearch','histType','histStatus'].forEach(id => $(id).addEventListener('input', renderHistory));
+const histSel = new Set();
+function updateSelCount(){
+  $('selCount').textContent = histSel.size + ' selected';
+  $('selCount').classList.toggle('hidden', histSel.size === 0);
+  $('delSelected').classList.toggle('hidden', histSel.size === 0);
+  icons();
+}
+$('delSelected').addEventListener('click', () => {
+  if (!histSel.size) return;
+  if (!confirm(`Delete ${histSel.size} selected entr${histSel.size === 1 ? 'y' : 'ies'}? This cannot be undone.`)) return;
+  hist = hist.filter(h => !histSel.has(h.id));
+  histSel.clear(); save(LS.hist, hist);
+  updateSelCount(); renderAll();
+  toast('Selected entries deleted.', 'info');
+});
+$('histRows').addEventListener('change', e => {
+  if (!e.target.classList.contains('histSel')) return;
+  e.target.checked ? histSel.add(e.target.dataset.id) : histSel.delete(e.target.dataset.id);
+  updateSelCount();
+});
+$('histSelAll').addEventListener('change', e => {
+  document.querySelectorAll('.histSel').forEach(b => {
+    b.checked = e.target.checked;
+    e.target.checked ? histSel.add(b.dataset.id) : histSel.delete(b.dataset.id);
+  });
+  updateSelCount();
+});
+function filteredHist(){
+  const q = $('histSearch').value.toLowerCase(), t = $('histType').value, s = $('histStatus').value;
+  return hist.filter(h =>
+    (!t || h.type === t) && (!s || h.status === s) &&
+    (!q || [h.chapter, h.name, h.invoice, h.type].join(' ').toLowerCase().includes(q)));
+}
+function renderHistory(){
+  const rows = filteredHist();
+  $('histEmpty').classList.toggle('hidden', rows.length > 0);
+  $('histRows').innerHTML = rows.map(h => `<tr class="border-t border-slate-100 ${inReport(h) ? '' : 'opacity-50'}">
+    <td class="p-3"><input type="checkbox" class="histSel accent-indigo-600" data-id="${h.id}" ${histSel.has(h.id) ? 'checked' : ''}></td>
+    <td class="p-3 whitespace-nowrap text-slate-500">${new Date(h.ts).toLocaleString()}</td>
+    <td class="p-3">${esc(h.chapter) || '—'}</td><td class="p-3">${esc(h.name) || '—'}</td>
+    <td class="p-3">${esc(h.invoice) || '—'}</td><td class="p-3 text-right">${php(h.amount)}</td>
+    <td class="p-3"><span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100">${h.type}</span></td>
+    <td class="p-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${h.status==='Flagged' && !h.resolved ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${h.status==='Flagged' && h.resolved ? 'Resolved' : h.status}</span></td>
+    <td class="p-3"><button class="text-[11px] px-2 py-0.5 rounded-full ${inReport(h) ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}" onclick="toggleReport('${h.id}')" title="Click to ${inReport(h) ? 'exclude from' : 'include in'} the finance report">${inReport(h) ? 'Included' : 'Excluded'}</button></td>
+    <td class="p-3 text-right whitespace-nowrap">
+      <button class="text-indigo-600 text-xs mr-2" onclick="viewEntry('${h.id}')">View</button>
+      ${h.status==='Flagged' && !h.resolved ? `<button class="text-emerald-600 text-xs mr-2" onclick="resolveEntry('${h.id}')">Resolve</button>` : ''}
+      <button class="text-red-500 text-xs" onclick="delEntry('${h.id}')">Delete</button>
+    </td></tr>`).join('');
+}
+window.viewEntry = id => {
+  const h = hist.find(x => x.id === id); if (!h) return;
+  const fields = h.type === 'CA Request' ? CA_FIELDS : LIQ_FIELDS;
+  openModal(`<h2 class="font-bold text-lg mb-1">${h.type} · ${new Date(h.ts).toLocaleString()}</h2>
+    ${h.flags?.length ? `<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mb-3"><b>Audit flags:</b><ul class="list-disc ml-4 mt-1">${h.flags.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></div>` : ''}
+    <dl class="text-sm divide-y divide-slate-100">${fields.map(([k,l]) => `<div class="py-1.5 grid grid-cols-2 gap-2"><dt class="text-slate-500">${esc(l)}</dt><dd class="break-words">${esc(h.data?.[k]) || '<span class="text-slate-300">—</span>'}</dd></div>`).join('')}</dl>
+    <div class="mt-4 text-right"><button onclick="closeModal()" class="px-4 py-2 text-sm bg-slate-900 text-white rounded-lg">Close</button></div>`);
+};
+window.resolveEntry = id => { const h = hist.find(x => x.id === id); if (h) { h.resolved = true; save(LS.hist, hist); renderAll(); } };
+window.toggleReport = id => {
+  const h = hist.find(x => x.id === id); if (!h) return;
+  h.included = !inReport(h);
+  save(LS.hist, hist); renderAll();
+  toast(h.included ? 'Entry now counts toward the finance report.' : 'Entry excluded from the finance report (still kept in history).', 'info');
+};
+window.delEntry = id => {
+  if (!confirm('Delete this entry?')) return;
+  hist = hist.filter(x => x.id !== id);
+  histSel.delete(id);
+  save(LS.hist, hist); updateSelCount(); renderAll();
+  toast('Entry deleted.', 'info');
+};
+
+/* Export in the EXACT master-sheet format: liquidations → the 17 columns in order,
+   CA requests → separate 8-column file. Exports selected entries; if none are
+   ticked, exports whatever the current filters show. */
+$('exportCsv').addEventListener('click', () => {
+  const csvCell = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const downloadCsv = (lines, name) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type:'text/csv' }));
+    a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  };
+  const visible = filteredHist();
+  const chosen = histSel.size ? visible.filter(h => histSel.has(h.id)) : visible;
+  if (!chosen.length) return toast('Nothing to export — tick entries (or loosen the filters).', 'warn');
+  const stamp = new Date().toISOString().slice(0,10);
+  const liq = chosen.filter(h => h.type !== 'CA Request');
+  const ca = chosen.filter(h => h.type === 'CA Request');
+  if (liq.length) downloadCsv([
+    LIQ_FIELDS.map(([,l]) => csvCell(l)).join(','),
+    ...liq.map(h => LIQ_FIELDS.map(([k]) => csvCell(h.data?.[k])).join(',')),
+  ], `liquidations_${stamp}.csv`);
+  if (ca.length) downloadCsv([
+    CA_FIELDS.map(([,l]) => csvCell(l)).join(','),
+    ...ca.map(h => CA_FIELDS.map(([k]) => csvCell(h.data?.[k])).join(',')),
+  ], `ca_requests_${stamp}.csv`);
+  toast(`Exported ${chosen.length} ${histSel.size ? 'selected' : 'filtered'} entr${chosen.length === 1 ? 'y' : 'ies'} in master-sheet format${ca.length && liq.length ? ' (2 files)' : ''}.`);
+});
+$('clearAll').addEventListener('click', () => {
+  if (confirm('Clear ALL history entries?') && confirm('This cannot be undone. Really clear everything?')) {
+    hist = []; save(LS.hist, hist); renderAll(); toast('History cleared.', 'info');
+  }
+});
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+  const rep = hist.filter(inReport);   // money metrics count only report-included entries
+  const liq = rep.filter(h => h.type !== 'CA Request');
+  const ca = rep.filter(h => h.type === 'CA Request');
+  const excluded = hist.length - rep.length;
+  const flagsOpen = hist.filter(h => h.status === 'Flagged' && !h.resolved).length;
+  const rate = hist.length ? Math.round(hist.filter(h => h.status === 'Success').length / hist.length * 100) : 100;
+  const cards = [
+    ['file-check-2', 'Total Submissions', hist.length + (excluded ? ` <span class="text-xs font-normal text-slate-400">(${excluded} excluded)</span>` : ''), 'text-indigo-500'],
+    ['banknote', 'Total Liquidated (PHP)', php(liq.reduce((s,h) => s + h.amount, 0)), 'text-emerald-500'],
+    ['hand-coins', 'Total CA Requested (PHP)', php(ca.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
+    ['flag', 'Pending Audit Flags', flagsOpen, flagsOpen ? 'text-amber-500' : 'text-slate-400'],
+    ['badge-check', 'Success Rate', rate + '%', 'text-emerald-500'],
+  ];
+  $('metricCards').innerHTML = cards.map(([ic, l, v, c]) => `<div class="bg-white rounded-xl shadow p-4">
+    <i data-lucide="${ic}" class="w-5 h-5 ${c}"></i>
+    <p class="text-xs text-slate-500 mt-2">${l}</p><p class="text-xl font-bold mt-0.5 break-words">${v}</p></div>`).join('');
+
+  $('activityFeed').innerHTML = hist.slice(0,5).map(h => `<div class="flex items-center gap-3 border-b border-slate-50 pb-2">
+    <i data-lucide="${h.type==='Image'?'scan-line':h.type==='CA Request'?'hand-coins':'mail'}" class="w-4 h-4 text-slate-400"></i>
+    <div class="flex-1 min-w-0"><p class="truncate">${esc(h.name) || esc(h.chapter) || '(unnamed)'}</p>
+    <p class="text-[11px] text-slate-400">${new Date(h.ts).toLocaleString()}</p></div>
+    <span class="text-sm font-medium">${php(h.amount)}</span>
+    <span class="text-[10px] px-2 py-0.5 rounded-full ${h.status==='Flagged'&&!h.resolved?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'}">${h.status}</span>
+    <button class="text-slate-300 hover:text-red-500 shrink-0" onclick="delEntry('${h.id}')" title="Delete this entry (e.g. accidental duplicate)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+  </div>`).join('') || '<p class="text-slate-400 text-sm">Nothing processed yet.</p>';
+
+  const byCh = {};
+  liq.filter(h => h.chapter).forEach(h => byCh[h.chapter] = (byCh[h.chapter]||0) + h.amount);
+  const top = Object.entries(byCh).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const max = top[0]?.[1] || 1;
+  $('topChapters').innerHTML = top.map(([ch, amt]) => `<div>
+    <div class="flex justify-between text-xs mb-1"><span>${esc(ch)}</span><span class="font-medium">${php(amt)}</span></div>
+    <div class="bg-slate-100 rounded-full h-2.5"><div class="bg-indigo-500 h-2.5 rounded-full" style="width:${amt/max*100}%"></div></div>
+  </div>`).join('') || '<p class="text-slate-400 text-sm">No liquidations logged yet.</p>';
+  icons();
+}
+
+/* ================= GMAIL AUTO-INGESTION ================= */
+const GQ_DEFAULT = 'subject:"[DEVCON Form]"';
+const GQ_PRESETS = [
+  ['All DEVCON forms (all time)', 'subject:"[DEVCON Form]"'],
+  ['Fund requests only', 'subject:"[DEVCON Form]" subject:"Request for Chapter Event Support"'],
+  ['Liquidations only', 'subject:"[DEVCON Form]" subject:liquidation'],
+  ['Last 30 days', 'subject:"[DEVCON Form]" newer_than:30d'],
+];
+let gToken = null, gTokenClient = null, gInbox = [], gAutoTimer = null, gAutoBusy = false, gNextPage = null;
+let gProcessed = load(LS.gproc, {});   // messageId -> 'processed' | 'skipped'
+const gBodies = {};                    // messageId -> plain-text body cache
+
+/* Combined classify + extract schema: doc_type + union of both field sets */
+function comboSchema(){
+  const props = { doc_type: { type:'string', enum:['liquidation','ca_request','other'],
+    description:'liquidation = chapter liquidation/expense/receipt submission; ca_request = Cash Advance request; other = anything else' } };
+  [...LIQ_FIELDS, ...CA_FIELDS].forEach(([k,l]) => { if (!props[k]) props[k] = propFor(k, l); });
+  return { type:'object', properties: props, required: Object.keys(props), additionalProperties:false };
+}
+
+const COMBO_SYSTEM = `You are a meticulous finance encoder for a nonprofit's chapter finance process.
+You receive the text of an email notification (usually a Google Forms response summary).
+Step 1 — classify doc_type:
+- 'liquidation' if it is a chapter liquidation / expense / receipt submission
+- 'ca_request' if it is a Cash Advance (CA) request
+- 'other' for anything else (confirmations, newsletters, unrelated mail)
+Subject hints: emails titled "[DEVCON Form] ... Request for Chapter Event Support or Programs Event Seed Fund from HQ National Office" are 'ca_request'; the same form title containing "Liquidation" is 'liquidation'.
+Step 2 — extract the fields belonging to that document type into the schema.
+Rules:
+- If a value cannot be determined with 100% certainty, return "" for that field. Never guess.
+- Fields belonging to the OTHER document type must be "". For doc_type 'other', ALL fields must be "".
+- Normalize dates to YYYY-MM-DD and TIN to digits-with-dashes when confidently readable.
+- amount / amount_requested: digits and decimal point only (no currency symbol, no commas).
+- particulars must be exactly one of the allowed options in the schema; use 'Others' + others_specify when nothing fits.
+- Leave vat_excl, vat, and vat_incl as "" — computed by the application.`;
+
+$('gClientId').value = localStorage.getItem(LS.gcid) || '';
+$('gQuery').value = localStorage.getItem(LS.gq) || GQ_DEFAULT;
+$('gAuto').checked = load(LS.gauto, false);
+
+$('gPresets').innerHTML = GQ_PRESETS.map(([label], i) =>
+  `<button data-i="${i}" class="gPreset text-[11px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600">${label}</button>`).join('');
+document.querySelectorAll('.gPreset').forEach(b => b.addEventListener('click', () => {
+  const q = GQ_PRESETS[+b.dataset.i][1];
+  $('gQuery').value = q;
+  localStorage.setItem(LS.gq, q);
+  if (gToken) refreshInbox();
+  else toast('Query set — connect Google to fetch matching emails.', 'info');
+}));
+
+$('gSaveSettings').addEventListener('click', () => {
+  localStorage.setItem(LS.gcid, $('gClientId').value.trim());
+  localStorage.setItem(LS.gq, $('gQuery').value.trim() || GQ_DEFAULT);
+  toast('Gmail settings saved.', 'info');
+});
+
+$('gConnect').addEventListener('click', () => {
+  const cid = $('gClientId').value.trim();
+  if (!cid) return toast('Enter your Google OAuth Client ID first (see setup note below).', 'warn');
+  if (location.protocol === 'file:') return toast('Google sign-in cannot run from a file:// page — launch via start-dashboard.bat instead.', 'error');
+  if (!window.google?.accounts?.oauth2) return toast('Google sign-in library still loading — try again in a second.', 'warn');
+  localStorage.setItem(LS.gcid, cid);
+  gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: cid,
+    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly',
+    callback: resp => {
+      if (resp.error) return toast('Gmail authorization failed: ' + resp.error, 'error');
+      gToken = resp.access_token;
+      $('gStatus').innerHTML = '<span class="text-emerald-600">&#9679; Connected — Gmail + Drive (read-only)</span>';
+      refreshInbox();
+      startAutoLoop();
+    },
+  });
+  gTokenClient.requestAccessToken();
+});
+
+async function gmailGet(path){
+  const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/' + path,
+    { headers: { Authorization: 'Bearer ' + gToken } });
+  if (r.status === 401) {
+    gToken = null; clearInterval(gAutoTimer);
+    $('gStatus').innerHTML = '<span class="text-amber-600">&#9679; Session expired — click Connect Gmail again</span>';
+    throw new Error('gmail-session-expired');
+  }
+  if (!r.ok) throw new Error('gmail-http-' + r.status);
+  return r.json();
+}
+
+$('gRefresh').addEventListener('click', () => refreshInbox());
+$('gLoadOlder').addEventListener('click', () => { if (gNextPage) refreshInbox(gNextPage); });
+async function refreshInbox(pageToken){
+  if (!gToken) return toast('Connect Gmail first.', 'warn');
+  try {
+    const q = $('gQuery').value.trim() || GQ_DEFAULT;
+    const list = await gmailGet('messages?maxResults=25&q=' + encodeURIComponent(q)
+      + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''));
+    const items = pageToken ? [...gInbox] : [];
+    for (const m of (list.messages || [])) {
+      if (items.some(x => x.id === m.id)) continue;
+      const known = gInbox.find(x => x.id === m.id);
+      if (known) { items.push(known); continue; }
+      const meta = await gmailGet(`messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
+      const h = k => (meta.payload.headers || []).find(x => x.name.toLowerCase() === k.toLowerCase())?.value || '';
+      items.push({ id: m.id, subject: h('Subject'), from: h('From'), date: h('Date'), snippet: meta.snippet || '', busy: false });
+    }
+    gInbox = items;
+    gNextPage = list.nextPageToken || null;
+    renderInbox();
+    if ($('gAuto').checked) autoProcessNew();
+  } catch (e) {
+    if (e.message !== 'gmail-session-expired') toast('Failed to fetch inbox (' + e.message + ')', 'error');
+  }
+}
+
+function renderInbox(){
+  const newCount = gInbox.filter(m => !gProcessed[m.id]).length;
+  $('gmailBadge').textContent = newCount;
+  $('gmailBadge').classList.toggle('hidden', newCount === 0);
+  $('gInboxEmpty').classList.toggle('hidden', gInbox.length > 0);
+  $('gLoadOlder').classList.toggle('hidden', !gNextPage);
+  $('gInboxRows').innerHTML = gInbox.map(m => {
+    const st = gProcessed[m.id];
+    const badge = m.busy ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 animate-pulse shrink-0">processing</span>'
+      : st === 'processed' ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">processed</span>'
+      : st === 'skipped' ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 shrink-0">skipped</span>'
+      : '<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">new</span>';
+    return `<div class="px-5 py-3 flex items-center gap-3 text-sm">
+      <div class="flex-1 min-w-0">
+        <p class="font-medium truncate">${esc(m.subject) || '(no subject)'}</p>
+        <p class="text-xs text-slate-400 truncate">${esc(m.from)} &middot; ${esc(m.date)}</p>
+        <p class="text-xs text-slate-500 truncate">${esc(m.snippet)}</p>
+      </div>
+      ${badge}
+      <div class="flex gap-2 shrink-0">
+        ${!st && !m.busy ? `<button class="bg-indigo-600 text-white text-xs px-2.5 py-1 rounded-lg" onclick="gProcess('${m.id}')">Process</button>
+        <button class="text-xs text-slate-500" onclick="gSkip('${m.id}')">Skip</button>` : ''}
+        <button class="text-xs text-indigo-600" onclick="gView('${m.id}')">View</button>
+      </div>
+    </div>`;
+  }).join('');
+  icons();
+}
+
+/* MIME body extraction: prefer text/plain, fall back to stripped text/html */
+function b64url(s){
+  const bin = atob(s.replace(/-/g,'+').replace(/_/g,'/'));
+  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+}
+function findPart(payload, mime){
+  if (payload.mimeType === mime && payload.body?.data) return payload.body.data;
+  for (const p of payload.parts || []) { const r = findPart(p, mime); if (r) return r; }
+  return null;
+}
+function getBody(payload){
+  const plain = findPart(payload, 'text/plain');
+  if (plain) return b64url(plain);
+  const html = findPart(payload, 'text/html');
+  if (html) return new DOMParser().parseFromString(b64url(html), 'text/html').body.innerText;
+  return '';
+}
+
+window.gProcess = async id => {
+  const m = gInbox.find(x => x.id === id);
+  if (!m || m.busy) return;
+  m.busy = true; renderInbox();
+  try {
+    const full = await gmailGet(`messages/${id}?format=full`);
+    const body = getBody(full.payload).trim();
+    gBodies[id] = body;
+    if (!body) throw new Error('empty email body');
+    const data = await callClaude(
+      [{ type:'text', text:`Classify and extract this form-notification email.\n\nSubject: ${m.subject}\nFrom: ${m.from}\n\n${body}` }],
+      COMBO_SYSTEM, comboSchema());
+    if (data.doc_type === 'liquidation') {
+      const f = {}; LIQ_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
+      const flags = await commitLiqEntry(f, 'Email', false);
+      gProcessed[id] = 'processed';
+      toast(flags.length ? `Liquidation logged (FLAGGED: ${flags[0]})` : `Liquidation logged: ${m.subject}`, flags.length ? 'warn' : 'success');
+    } else if (data.doc_type === 'ca_request') {
+      const f = {}; CA_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
+      const flags = await commitCAEntry(f, false);
+      gProcessed[id] = 'processed';
+      toast(flags.length ? `CA request logged (FLAGGED: ${flags[0]})` : `CA request logged: ${m.subject}`, flags.length ? 'warn' : 'success');
+    } else {
+      gProcessed[id] = 'skipped';
+      toast(`Not a liquidation/CA email — skipped: ${m.subject}`, 'info');
+    }
+    save(LS.gproc, gProcessed);
+  } catch (e) {
+    if (!['no-key','gmail-session-expired'].includes(e.message)) toast('Failed to process email: ' + e.message, 'error');
+  }
+  m.busy = false; renderInbox();
+};
+
+window.gSkip = id => { gProcessed[id] = 'skipped'; save(LS.gproc, gProcessed); renderInbox(); };
+
+window.gView = async id => {
+  const m = gInbox.find(x => x.id === id);
+  if (!m) return;
+  try {
+    if (!gBodies[id]) {
+      const full = await gmailGet(`messages/${id}?format=full`);
+      gBodies[id] = getBody(full.payload);
+    }
+    openModal(`<h2 class="font-bold text-lg mb-1">${esc(m.subject)}</h2>
+      <p class="text-xs text-slate-400 mb-3">${esc(m.from)} &middot; ${esc(m.date)}</p>
+      <pre class="text-xs bg-slate-50 rounded-lg p-3 whitespace-pre-wrap max-h-96 overflow-y-auto">${esc(gBodies[id])}</pre>
+      <div class="mt-4 flex justify-end gap-2">
+        <button class="px-4 py-2 text-sm border border-slate-300 rounded-lg" onclick="sendToEmailTab('${id}')">Send to Email Tab</button>
+        <button onclick="closeModal()" class="px-4 py-2 text-sm bg-slate-900 text-white rounded-lg">Close</button>
+      </div>`);
+  } catch (e) { toast('Failed to load email: ' + e.message, 'error'); }
+};
+
+window.sendToEmailTab = id => {
+  $('emailBody').value = gBodies[id] || '';
+  closeModal();
+  document.querySelector('[data-tab=email]').click();
+  toast('Email body loaded into the Email Extractor.', 'info');
+};
+
+$('gAuto').addEventListener('change', () => { save(LS.gauto, $('gAuto').checked); startAutoLoop(); });
+function startAutoLoop(){
+  clearInterval(gAutoTimer);
+  if ($('gAuto').checked && gToken) {
+    gAutoTimer = setInterval(refreshInbox, 120000);
+    toast('Auto-processing on — new matching emails will be encoded automatically.', 'info');
+  }
+}
+async function autoProcessNew(){
+  if (gAutoBusy) return;
+  gAutoBusy = true;
+  for (const m of gInbox) {
+    if (!gProcessed[m.id] && !m.busy) await gProcess(m.id);
+    if (!gToken) break;
+  }
+  gAutoBusy = false;
+}
+
+/* ================= GOOGLE DRIVE LINK INGESTION ================= */
+const DRIVE_OK_MIME = ['image/jpeg','image/png','image/webp','image/gif','application/pdf'];
+function driveIdFrom(link){
+  const m = link.match(/\/d\/([A-Za-z0-9_-]{20,})/) || link.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+  return m ? m[1] : null;
+}
+$('fetchDrive').addEventListener('click', async () => {
+  const link = $('driveLink').value.trim();
+  const id = driveIdFrom(link);
+  if (!id) return toast('That does not look like a Google Drive file link.', 'warn');
+  const btn = $('fetchDrive');
+  btn.disabled = true; btn.textContent = 'Fetching...';
+  try {
+    let blob = null, name = 'drive-file', mime = '';
+    if (gToken) {
+      const metaR = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,thumbnailLink&supportsAllDrives=true`,
+        { headers: { Authorization: 'Bearer ' + gToken } });
+      if (metaR.ok) {
+        const meta = await metaR.json();
+        name = meta.name || name; mime = meta.mimeType || '';
+        if (DRIVE_OK_MIME.includes(mime)) {
+          const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`,
+            { headers: { Authorization: 'Bearer ' + gToken } });
+          if (r.ok) blob = await r.blob();
+        } else if (meta.thumbnailLink) {
+          // HEIC / unsupported formats: use Drive's own JPEG render of the file
+          const r = await fetch(meta.thumbnailLink.replace(/=s\d+[^&]*$/, '=s2048'));
+          if (r.ok) { blob = await r.blob(); mime = 'image/jpeg'; name = name.replace(/\.\w+$/, '') + '.jpg'; }
+        }
+      }
+    }
+    if (!blob) {
+      // Public "anyone with link" fallback — Drive's image CDN serves a JPEG render, no auth needed
+      const r = await fetch(`https://lh3.googleusercontent.com/d/${id}=s2048`);
+      if (r.ok) { blob = await r.blob(); mime = blob.type || 'image/jpeg'; name = 'drive-' + id.slice(0, 8) + '.jpg'; }
+    }
+    if (!blob || !blob.size) throw new Error('unreachable');
+    if (!DRIVE_OK_MIME.includes(mime)) mime = 'image/jpeg';
+    const file = new File([blob], name, { type: mime });
+    queue.push({ id: uid(), file, status: 'queued', data: null, url: URL.createObjectURL(file), gdriveLink: link });
+    $('driveLink').value = '';
+    renderQueue(); processQueue();
+  } catch {
+    toast(gToken
+      ? 'Could not fetch that Drive file — check the link, or make sure the file is shared with your account.'
+      : 'Could not fetch the file. Share it as "anyone with link", or connect Google in the Gmail Inbox tab for private files.', 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Fetch & Extract';
+});
+
+/* ================= MODAL / TABS / INIT ================= */
+function openModal(html){ $('modalBody').innerHTML = html; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); icons(); }
+window.closeModal = () => { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); };
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  $('tab-' + btn.dataset.tab).classList.remove('hidden');
+}));
+
+$('apiKey').value = localStorage.getItem(LS.key) || '';
+$('saveKey').addEventListener('click', () => {
+  localStorage.setItem(LS.key, $('apiKey').value.trim());
+  toast($('apiKey').value.trim() ? 'API key saved to this browser.' : 'API key cleared.', 'info');
+});
+
+function renderAll(){ renderDashboard(); renderHistory(); renderBudgets(); }
+renderAll(); icons();
+</script>
+</body>
+</html>
