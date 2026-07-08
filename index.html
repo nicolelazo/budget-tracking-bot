@@ -870,18 +870,35 @@ $('gConnect').addEventListener('click', () => {
   if (location.protocol === 'file:') return toast('Google sign-in cannot run from a file:// page — launch via start-dashboard.bat instead.', 'error');
   if (!window.google?.accounts?.oauth2) return toast('Google sign-in library still loading — try again in a second.', 'warn');
   localStorage.setItem(LS.gcid, cid);
-  gTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: cid,
-    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly',
-    callback: resp => {
-      if (resp.error) return toast('Gmail authorization failed: ' + resp.error, 'error');
-      gToken = resp.access_token;
-      $('gStatus').innerHTML = '<span class="text-emerald-600">&#9679; Connected — Gmail + Drive (read-only)</span>';
-      refreshInbox();
-      startAutoLoop();
-    },
-  });
-  gTokenClient.requestAccessToken();
+  try {
+    gTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: cid,
+      scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly',
+      callback: resp => {
+        if (resp.error) return toast('Gmail authorization failed: ' + resp.error, 'error');
+        gToken = resp.access_token;
+        $('gStatus').innerHTML = '<span class="text-emerald-600">&#9679; Connected — Gmail + Drive (read-only)</span>';
+        refreshInbox();
+        startAutoLoop();
+      },
+      // Fires on popup blocked / closed before finishing / failed to open —
+      // without this, those failures are completely silent ("nothing happens").
+      error_callback: err => {
+        console.error('Google sign-in error:', err);
+        const t = err?.type;
+        if (t === 'popup_failed_to_open')
+          toast('Sign-in popup was blocked — allow pop-ups for this site and click Connect again.', 'error');
+        else if (t === 'popup_closed')
+          toast('Sign-in window closed before finishing — click Connect to try again.', 'warn');
+        else
+          toast('Google sign-in could not start (' + (t || 'unknown error') + '). See the browser console.', 'error');
+      },
+    });
+    gTokenClient.requestAccessToken();
+  } catch (e) {
+    console.error('initTokenClient threw:', e);
+    toast('Could not start Google sign-in: ' + e.message + ' — check your Client ID.', 'error');
+  }
 });
 
 async function gmailGet(path){
