@@ -125,7 +125,7 @@
   <!-- ============ TAB: GMAIL ============ -->
   <section id="tab-gmail" class="tab-panel hidden">
     <h1 class="text-2xl font-bold mb-1">Gmail Inbox — Auto-Detect Form Emails</h1>
-    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests. Amounts and fields are read from the email body; any uploaded receipts linked in the submission are auto-fetched from Drive and read too. Each entry also gets an AI summary that feeds the dashboard finance report.</p>
+    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests. Amounts and fields are read from the email body; any uploaded receipts (images/PDFs) or linked Google Sheets/Docs in the submission are auto-fetched from Drive and read too. Each entry also gets an AI summary that feeds the dashboard finance report.</p>
     <div class="grid lg:grid-cols-3 gap-6">
       <div class="bg-white rounded-xl shadow p-5 space-y-3">
         <h2 class="font-semibold flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-indigo-500"></i>Connection Settings</h2>
@@ -1057,21 +1057,23 @@ function getBody(payload){
 
 const MAX_EMAIL_ATTACHMENTS = 3;   // cap Drive fetches per email to keep API calls sane
 
-/* Pull any uploaded receipts linked in the email body from Drive, so Claude reads
-   the actual receipt instead of only the typed form values. Returns
-   { blocks, attachments } — attachments = [{url, name}] for display/audit. */
+/* Pull anything linked in the email body from Drive, so Claude reads the actual
+   submission instead of only the typed form values. Handles both uploaded receipts
+   (images/PDFs → content blocks) and linked Google Sheets/Docs (exported to text).
+   Returns { blocks, texts, attachments } — attachments = [{url, name}] for display. */
 async function fetchEmailReceipts(body){
   const links = driveLinksIn(body).slice(0, MAX_EMAIL_ATTACHMENTS);
-  const blocks = [], attachments = [];
+  const blocks = [], texts = [], attachments = [];
   for (const { id, url } of links) {
     try {
-      const file = await fetchDriveFile(id);
-      if (!file) { attachments.push({ url, name: '(could not open)' }); continue; }
-      blocks.push(await fileToBlock(file));
-      attachments.push({ url, name: file.name });
+      const got = await fetchDriveForEmail(id, url);
+      if (!got) { attachments.push({ url, name: '(could not open)' }); continue; }
+      if (got.block) blocks.push(got.block);
+      else if (got.text != null) texts.push(`----- ${got.name} -----\n${got.text}`);
+      attachments.push({ url, name: got.name });
     } catch { attachments.push({ url, name: '(could not open)' }); }
   }
-  return { blocks, attachments };
+  return { blocks, texts, attachments };
 }
 
 window.gProcess = async id => {
@@ -1084,15 +1086,17 @@ window.gProcess = async id => {
     gBodies[id] = body;
     if (!body) throw new Error('empty email body');
 
-    // Google Forms file-upload answers arrive as Drive links, not attachments —
-    // fetch and attach them so the extraction sees the real receipt.
-    const { blocks, attachments } = await fetchEmailReceipts(body);
-    const receiptNote = blocks.length
-      ? `\n\n${blocks.length} uploaded receipt file(s) from this submission are attached above — cross-check the amount and details against them.`
-      : '';
+    // Google Forms file-upload / sheet-link answers arrive as Drive links, not
+    // attachments — fetch them so the extraction sees the real receipt or sheet.
+    const { blocks, texts, attachments } = await fetchEmailReceipts(body);
+    const notes = [];
+    if (blocks.length) notes.push(`${blocks.length} uploaded receipt file(s) from this submission are attached above — cross-check the amount and details against them.`);
+    if (texts.length) notes.push(`The contents of ${texts.length} linked Google Sheet/Doc from this submission are included below — treat them as the authoritative source for the amount and line items.`);
+    const sheetSection = texts.length ? `\n\n=== LINKED SHEET / DOC CONTENTS ===\n${texts.join('\n\n')}` : '';
+    const receiptNote = notes.length ? `\n\n${notes.join(' ')}` : '';
     const content = [
       ...blocks,
-      { type:'text', text:`Classify and extract this form-notification email.\n\nSubject: ${m.subject}\nFrom: ${m.from}\n\n${body}${receiptNote}` },
+      { type:'text', text:`Classify and extract this form-notification email.\n\nSubject: ${m.subject}\nFrom: ${m.from}\n\n${body}${receiptNote}${sheetSection}` },
     ];
     const data = await callClaude(content, COMBO_SYSTEM, comboSchema());
     const firstLink = attachments.find(a => a.url)?.url || '';
@@ -1131,7 +1135,7 @@ window.gView = async id => {
     }
     const links = driveLinksIn(gBodies[id]);
     const linksHtml = links.length ? `<div class="mb-3">
-      <p class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Uploaded receipts / files in this submission (${links.length})</p>
+      <p class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Linked files in this submission — receipts, sheets, or docs (${links.length})</p>
       <ul class="text-xs space-y-1">${links.map((l,i) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener" class="text-indigo-600 underline break-all">Attachment ${i+1} — open in Drive</a></li>`).join('')}</ul>
       <p class="text-[11px] text-slate-400 mt-1">These are fetched and read automatically when you Process this email.</p>
     </div>` : '';
@@ -1210,6 +1214,54 @@ async function fetchDriveFile(id){
   if (!DRIVE_OK_MIME.includes(mime)) mime = 'image/jpeg';
   return new File([blob], name, { type: mime });
 }
+
+/* Google-native files (Sheets / Docs) can't be downloaded like a binary — they must be
+   EXPORTED. Map their MIME type to a text export format. */
+const DRIVE_EXPORT = {
+  'application/vnd.google-apps.spreadsheet': { mime:'text/csv',   label:'sheet → CSV' },
+  'application/vnd.google-apps.document':    { mime:'text/plain', label:'doc → text' },
+};
+const MAX_SHEET_CHARS = 20000;   // trim huge sheets before sending to the model
+/* When not signed in we can't read the file's MIME, so guess native type from the URL. */
+function nativeTypeFromUrl(url){
+  if (/\/spreadsheets\//.test(url)) return 'application/vnd.google-apps.spreadsheet';
+  if (/\/document\//.test(url)) return 'application/vnd.google-apps.document';
+  return '';
+}
+async function driveExportText(id, mime, exportMime){
+  if (gToken) {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(exportMime)}&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + gToken } });
+    if (r.ok) return await r.text();
+  }
+  // Public "anyone with link" fallback — the docs.google.com export URL needs no auth
+  const pub = exportMime === 'text/csv'
+    ? `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`
+    : `https://docs.google.com/document/d/${id}/export?format=txt`;
+  const r = await fetch(pub);
+  if (r.ok) return await r.text();
+  return null;
+}
+/* Resolve one linked Drive item for email extraction. Returns either
+   { block, name } (image/PDF), { text, name } (exported Sheet/Doc), or null. */
+async function fetchDriveForEmail(id, url){
+  let mime = '';
+  if (gToken) {
+    const metaR = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + gToken } });
+    if (metaR.ok) mime = (await metaR.json()).mimeType || '';
+  }
+  if (!mime) mime = nativeTypeFromUrl(url);   // no token: infer from the link shape
+  const exp = DRIVE_EXPORT[mime];
+  if (exp) {
+    const text = await driveExportText(id, mime, exp.mime);
+    if (text != null) return { text: text.slice(0, MAX_SHEET_CHARS), name: `linked ${exp.label}` };
+    return null;
+  }
+  const file = await fetchDriveFile(id);
+  return file ? { block: await fileToBlock(file), name: file.name } : null;
+}
+
 $('fetchDrive').addEventListener('click', async () => {
   const link = $('driveLink').value.trim();
   const id = driveIdFrom(link);
