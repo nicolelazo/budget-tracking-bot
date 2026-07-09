@@ -2,5 +2,8 @@
   "framework": null,
   "buildCommand": null,
   "installCommand": null,
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "crons": [
+    { "path": "/api/weekly-report", "schedule": "0 1 * * 1" }
+  ]
 }

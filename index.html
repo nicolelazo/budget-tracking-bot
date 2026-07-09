@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="lib/report.js"></script>
 <style>
   ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
   .tab-btn.active{background:#1e293b;color:#fff}
@@ -77,6 +78,50 @@
         <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">AI Narrative</h3>
         <div id="reportNarrative" class="prose-report text-sm text-slate-700 leading-relaxed">
           <p class="text-slate-400">Click <b>Generate Narrative</b> to have Claude summarize the finance activity below into a written report.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== WEEKLY REPORT / LIQUIDATION TRACKING ===== -->
+    <div class="bg-white rounded-xl shadow p-5 mt-6">
+      <h2 class="font-semibold flex items-center gap-2 mb-4"><i data-lucide="calendar-clock" class="w-4 h-4 text-indigo-500"></i>Weekly Report &amp; Liquidation Tracking
+        <span class="text-[11px] font-normal text-slate-400">— this is what the Monday Telegram message contains</span></h2>
+      <div id="weeklyReport" class="text-sm"></div>
+    </div>
+
+    <!-- ===== TELEGRAM WEEKLY BOT ===== -->
+    <div class="bg-white rounded-xl shadow p-5 mt-6">
+      <h2 class="font-semibold flex items-center gap-2 mb-1"><i data-lucide="send" class="w-4 h-4 text-indigo-500"></i>Telegram Weekly Bot</h2>
+      <p class="text-xs text-slate-500 mb-4">Sends the report above to your group chat every Monday (09:00 PH) via a Vercel Cron — no browser needed once cloud sync is on and the server env vars are set.</p>
+      <div class="grid md:grid-cols-2 gap-5">
+        <div class="space-y-3">
+          <label class="block"><span class="text-xs text-slate-500">Bot token <span class="text-slate-400">(for the “Send test” button only — the cron uses the server env var)</span></span>
+            <input id="tgToken" type="password" placeholder="123456:ABC-..." class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+          <label class="block"><span class="text-xs text-slate-500">Group chat ID <span class="text-slate-400">(usually negative, e.g. -1001234567890)</span></span>
+            <input id="tgChat" placeholder="-100..." class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
+          <label class="flex items-center gap-2 text-sm pt-1">
+            <input id="cloudSync" type="checkbox" class="accent-indigo-600">
+            Cloud sync — push dashboard data to the server so the Monday cron can read it
+          </label>
+          <div class="flex gap-2 flex-wrap">
+            <button id="tgTest" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="send-horizontal" class="w-4 h-4"></i>Send test report now</button>
+            <button id="tgSyncNow" class="border border-slate-300 px-3 py-1.5 rounded-lg text-sm">Sync now</button>
+          </div>
+          <p id="tgStatus" class="text-xs text-slate-400">Not sent yet.</p>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
+          <b>One-time server setup (Vercel → Settings → Environment Variables):</b>
+          <ul class="list-disc ml-4 mt-1 space-y-0.5">
+            <li><code>SUPABASE_URL</code> = <code>https://xlprsjxcxcrdxqbthtpk.supabase.co</code></li>
+            <li><code>SUPABASE_SERVICE_KEY</code> = your Supabase <b>service_role</b> key (Supabase → Settings → API)</li>
+            <li><code>TELEGRAM_BOT_TOKEN</code> = token from <b>@BotFather</b></li>
+            <li><code>TELEGRAM_CHAT_ID</code> = your group chat ID</li>
+            <li><code>CRON_SECRET</code> = any long random string (Vercel sends it to the cron)</li>
+            <li><code>APP_SYNC_SECRET</code> <i>(optional)</i> = guards the sync + manual-run endpoints</li>
+          </ul>
+          <b class="block mt-2">Getting the chat ID:</b> add the bot to the group, send any message, then open
+          <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> and copy <code>chat.id</code>.
+          <p class="mt-2">The Monday schedule lives in <code>vercel.json</code> (<code>0 1 * * 1</code> UTC = 09:00 PH). Redeploy after adding the env vars.</p>
         </div>
       </div>
     </div>
@@ -214,7 +259,8 @@
 /* ================= STATE ================= */
 const LS = { key:'anthropic_api_key', hist:'liquidation_history', bud:'chapter_budgets',
   gcid:'google_client_id', gq:'gmail_query', gproc:'gmail_processed_ids', gauto:'gmail_auto',
-  popts:'particulars_options', report:'finance_report' };
+  popts:'particulars_options', report:'finance_report',
+  tgtoken:'telegram_bot_token', tgchat:'telegram_chat_id', sync:'cloud_sync_enabled' };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 let hist = load(LS.hist, []);
@@ -875,6 +921,100 @@ $('copyReport').addEventListener('click', async () => {
   if (saved?.text) { await copyText(saved.text); toast('Report copied.'); }
 });
 
+/* ================= WEEKLY REPORT / TELEGRAM ================= */
+const currentState = () => ({ hist, budgets, telegram: { chatId: ($('tgChat').value || '').trim() } });
+const weeklyReport = () => BudgetReport.buildWeeklyReport(currentState(), Date.now());
+
+const dueBadge = { overdue:'bg-red-100 text-red-700', 'due-soon':'bg-amber-100 text-amber-700',
+  upcoming:'bg-slate-100 text-slate-600', 'no-date':'bg-slate-100 text-slate-400' };
+function pendRow(p){
+  const when = p.dueDate
+    ? (p.daysUntil < 0 ? `${-p.daysUntil}d overdue` : p.daysUntil === 0 ? 'due today' : `in ${p.daysUntil}d`)
+    : 'no due date';
+  return `<tr class="border-t border-slate-50">
+    <td class="py-1.5 pr-2"><span class="font-medium">${esc(p.chapter)}</span><span class="block text-[11px] text-slate-400 truncate max-w-[16rem]">${esc(p.label)}</span></td>
+    <td class="py-1.5 text-right whitespace-nowrap">${php(p.outstanding)}<span class="block text-[10px] text-slate-400">of ${php(p.requested)}</span></td>
+    <td class="py-1.5 text-right whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-full ${dueBadge[p.status]}">${esc(when)}</span>${p.dueDate ? `<span class="block text-[10px] text-slate-400">${esc(p.dueDate)}</span>` : ''}</td>
+  </tr>`;
+}
+function renderWeeklyReport(){
+  if (!window.BudgetReport) return;
+  const r = weeklyReport();
+  const t = r.totals;
+  const advVsLiq = `<div class="grid grid-cols-3 gap-3 text-center mb-4">
+    <div class="bg-sky-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Cash Advanced</p><p class="font-bold text-sky-600 break-words">${php(t.cashAdvanced)}</p><p class="text-[10px] text-slate-400">${t.caCount} request${t.caCount===1?'':'s'}</p></div>
+    <div class="bg-emerald-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600 break-words">${php(t.liquidated)}</p><p class="text-[10px] text-slate-400">${t.liqCount} entr${t.liqCount===1?'y':'ies'}</p></div>
+    <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Outstanding</p><p class="font-bold ${t.outstanding>0?'text-amber-600':'text-slate-500'} break-words">${php(t.outstanding)}</p></div>
+  </div>`;
+  const pendingTable = r.pending.length
+    ? `<table class="w-full"><thead><tr class="text-[11px] text-slate-400 text-left"><th class="pb-1">Chapter / Program</th><th class="pb-1 text-right">Outstanding</th><th class="pb-1 text-right">Liquidation due</th></tr></thead>
+       <tbody>${r.pending.map(pendRow).join('')}</tbody></table>`
+    : '<p class="text-emerald-600 text-sm">✅ No pending liquidations — every cash advance is accounted for.</p>';
+  const overB = r.overBudget.length
+    ? `<div class="mt-4 bg-red-50 border border-red-100 rounded-lg p-3 text-xs text-red-700"><b>🚨 Over budget:</b> ${r.overBudget.map(b => `${esc(b.chapter)} (${php(b.spent)} of ${php(b.allocated)})`).join(', ')}</div>`
+    : '';
+  $('weeklyReport').innerHTML = advVsLiq
+    + `<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pending CA Liquidations &amp; Due Dates</h3>${pendingTable}`
+    + `<div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs border-t border-slate-100 pt-3">
+        <div><p class="text-slate-400">New (7d)</p><p class="font-semibold">${r.weekly.newSubmissions}</p></div>
+        <div><p class="text-slate-400">Liquidated (7d)</p><p class="font-semibold">${php(r.weekly.newLiquidated)}</p></div>
+        <div><p class="text-slate-400">New CAs (7d)</p><p class="font-semibold">${php(r.weekly.newCA)}</p></div>
+        <div><p class="text-slate-400">Open flags</p><p class="font-semibold ${r.weekly.openFlags?'text-amber-600':''}">${r.weekly.openFlags}</p></div>
+      </div>` + overB;
+  icons();
+}
+
+/* --- Cloud sync: push snapshot so the Monday cron can read it (deployed only) --- */
+let syncTimer = null;
+function scheduleSync(){
+  if (!$('cloudSync')?.checked) return;
+  if (location.protocol === 'file:') return;   // needs the deployed API
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncStateNow, 1500);
+}
+async function syncStateNow(showToast){
+  if (location.protocol === 'file:') { if (showToast) toast('Cloud sync needs the deployed site, not a local file.', 'warn'); return; }
+  try {
+    const r = await fetch('/api/save-state', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(currentState()) });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || ('HTTP '+r.status)); }
+    if (showToast) toast('Dashboard synced to the server.', 'success');
+  } catch (e) {
+    if (showToast) toast('Sync failed: ' + e.message + ' — check the server env vars are set.', 'error');
+  }
+}
+
+$('tgToken').value = localStorage.getItem(LS.tgtoken) || '';
+$('tgChat').value  = localStorage.getItem(LS.tgchat) || '';
+$('cloudSync').checked = load(LS.sync, false);
+$('tgToken').addEventListener('input', () => localStorage.setItem(LS.tgtoken, $('tgToken').value.trim()));
+$('tgChat').addEventListener('input', () => localStorage.setItem(LS.tgchat, $('tgChat').value.trim()));
+$('cloudSync').addEventListener('change', () => {
+  save(LS.sync, $('cloudSync').checked);
+  if ($('cloudSync').checked) { toast('Cloud sync on — pushing current data...', 'info'); syncStateNow(true); }
+});
+$('tgSyncNow').addEventListener('click', () => syncStateNow(true));
+
+$('tgTest').addEventListener('click', async () => {
+  const token = $('tgToken').value.trim(), chat = $('tgChat').value.trim();
+  if (!token || !chat) return toast('Enter the bot token and group chat ID first.', 'warn');
+  const btn = $('tgTest');
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>Sending...'; icons();
+  try {
+    const msg = BudgetReport.formatTelegram(weeklyReport());
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: msg, parse_mode:'HTML', disable_web_page_preview:true }),
+    });
+    const j = await r.json();
+    if (j.ok) { $('tgStatus').textContent = 'Test report sent ' + new Date().toLocaleString(); toast('Test report sent to Telegram.'); }
+    else { $('tgStatus').textContent = 'Telegram error: ' + (j.description || r.status); toast('Telegram rejected it: ' + (j.description || r.status), 'error'); }
+  } catch (e) {
+    $('tgStatus').textContent = 'Send failed: ' + e.message;
+    toast('Could not reach Telegram: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.innerHTML = '<i data-lucide="send-horizontal" class="w-4 h-4"></i>Send test report now'; icons();
+});
+
 /* ================= GMAIL AUTO-INGESTION ================= */
 const GQ_DEFAULT = 'subject:"[DEVCON Form]"';
 const GQ_PRESETS = [
@@ -1300,7 +1440,7 @@ $('saveKey').addEventListener('click', () => {
   toast($('apiKey').value.trim() ? 'API key saved to this browser.' : 'API key cleared.', 'info');
 });
 
-function renderAll(){ renderDashboard(); renderHistory(); renderBudgets(); }
+function renderAll(){ renderDashboard(); renderHistory(); renderBudgets(); renderWeeklyReport(); scheduleSync(); }
 renderAll();
 const savedReport = load(LS.report, null);
 if (savedReport?.text) renderNarrative(savedReport.text, savedReport.ts);
