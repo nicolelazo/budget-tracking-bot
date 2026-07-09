@@ -39,7 +39,6 @@
 <nav class="w-60 bg-slate-900 text-slate-300 flex flex-col py-4 shrink-0">
   <button class="tab-btn active flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dashboard Overview</button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="receipt"><i data-lucide="scan-line" class="w-4 h-4"></i>Receipt Image Extractor</button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="email"><i data-lucide="mail-search" class="w-4 h-4"></i>Email Extractor</button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail"><i data-lucide="inbox" class="w-4 h-4"></i>Gmail Inbox<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="budget"><i data-lucide="piggy-bank" class="w-4 h-4"></i>Budget Tracker</button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="history"><i data-lucide="history" class="w-4 h-4"></i>Logs / History</button>
@@ -61,6 +60,24 @@
       <div class="bg-white rounded-xl shadow p-5">
         <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-indigo-500"></i>Top Chapters by Liquidated Amount</h2>
         <div id="topChapters" class="space-y-3 text-sm"></div>
+      </div>
+    </div>
+
+    <!-- ===== FINANCE REPORT ===== -->
+    <div class="bg-white rounded-xl shadow p-5 mt-6">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <h2 class="font-semibold flex items-center gap-2"><i data-lucide="file-bar-chart" class="w-4 h-4 text-indigo-500"></i>Finance Report</h2>
+        <div class="flex gap-2">
+          <button id="genReport" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="sparkles" class="w-4 h-4"></i>Generate Narrative</button>
+          <button id="copyReport" class="hidden border border-slate-300 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy</button>
+        </div>
+      </div>
+      <div id="reportStats" class="grid md:grid-cols-2 gap-5 text-sm"></div>
+      <div class="mt-5 border-t border-slate-100 pt-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">AI Narrative</h3>
+        <div id="reportNarrative" class="prose-report text-sm text-slate-700 leading-relaxed">
+          <p class="text-slate-400">Click <b>Generate Narrative</b> to have Claude summarize the finance activity below into a written report.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -105,43 +122,10 @@
     </div>
   </section>
 
-  <!-- ============ TAB: EMAIL ============ -->
-  <section id="tab-email" class="tab-panel hidden">
-    <h1 class="text-2xl font-bold mb-1">Email Extractor</h1>
-    <p class="text-sm text-slate-500 mb-5">Paste the raw body of a system-generated email, choose its type, and process.</p>
-    <div class="flex gap-2 mb-4">
-      <button id="modeLiq" class="emailMode bg-slate-900 text-white px-4 py-2 rounded-lg text-sm">Liquidation Email</button>
-      <button id="modeCA" class="emailMode bg-white border border-slate-300 px-4 py-2 rounded-lg text-sm">CA Request Email</button>
-    </div>
-    <div class="grid lg:grid-cols-2 gap-6">
-      <div class="bg-white rounded-xl shadow p-5 flex flex-col">
-        <textarea id="emailBody" rows="16" placeholder="Paste email text here..." class="w-full border border-slate-300 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1"></textarea>
-        <button id="processEmail" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 self-start"><i data-lucide="sparkles" class="w-4 h-4"></i>Process Email</button>
-      </div>
-      <div class="bg-white rounded-xl shadow p-5">
-        <div id="emailLiqPane">
-          <h2 class="font-semibold mb-3">Extracted Fields (17 columns)</h2>
-          <div id="form-e" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-          <div class="mt-4 flex gap-3 flex-wrap">
-            <button id="copyLiqE" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy Row for Spreadsheet</button>
-            <button class="copyHeader text-xs text-indigo-600 underline">Copy Header Row</button>
-          </div>
-        </div>
-        <div id="emailCAPane" class="hidden">
-          <h2 class="font-semibold mb-3">CA Request Fields (8 columns)</h2>
-          <div id="form-c" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-          <div class="mt-4">
-            <button id="copyCA" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>Copy CA Row</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ TAB: GMAIL ============ -->
   <section id="tab-gmail" class="tab-panel hidden">
     <h1 class="text-2xl font-bold mb-1">Gmail Inbox — Auto-Detect Form Emails</h1>
-    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests — no more pasting email bodies.</p>
+    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests. Amounts and fields are read from the email body; any uploaded receipts linked in the submission are auto-fetched from Drive and read too. Each entry also gets an AI summary that feeds the dashboard finance report.</p>
     <div class="grid lg:grid-cols-3 gap-6">
       <div class="bg-white rounded-xl shadow p-5 space-y-3">
         <h2 class="font-semibold flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-indigo-500"></i>Connection Settings</h2>
@@ -230,12 +214,11 @@
 /* ================= STATE ================= */
 const LS = { key:'anthropic_api_key', hist:'liquidation_history', bud:'chapter_budgets',
   gcid:'google_client_id', gq:'gmail_query', gproc:'gmail_processed_ids', gauto:'gmail_auto',
-  popts:'particulars_options' };
+  popts:'particulars_options', report:'finance_report' };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 let hist = load(LS.hist, []);
 let budgets = load(LS.bud, []);
-let emailMode = 'liq';
 let queue = [];
 
 const LIQ_FIELDS = [
@@ -301,7 +284,7 @@ function wireForm(prefix, fields){
   if (amt) amt.addEventListener('input', () => recalcVAT(prefix));
 }
 function mountForms(preserve){
-  [['form-r', LIQ_FIELDS, 'r_'], ['form-e', LIQ_FIELDS, 'e_'], ['form-c', CA_FIELDS, 'c_']].forEach(([c, fields, p]) => {
+  [['form-r', LIQ_FIELDS, 'r_']].forEach(([c, fields, p]) => {
     const vals = preserve ? getForm(p, fields) : null;
     buildForm(c, fields, p);
     if (vals) fields.forEach(([k]) => $(p+k).value = vals[k] ?? '');
@@ -371,12 +354,6 @@ Rules:
 - particulars must be exactly one of the allowed options in the schema — pick the closest category for what was purchased. If none fits, use 'Others' and describe the item in others_specify. If truly uncertain, return "".
 - gdrive_link: only fill if a URL is explicitly present in the source; otherwise "".`;
 
-const CA_SYSTEM = `You are a meticulous finance encoder. Extract data from the provided Cash Advance (CA) request email into the exact JSON schema given.
-Rules:
-- If a value cannot be determined with 100% certainty, return an empty string "". Never guess.
-- Normalize all dates to YYYY-MM-DD when confidently readable.
-- amount_requested is digits and decimal point only (no currency symbol, no commas).`;
-
 async function callClaude(userContent, system, schema){
   const key = (localStorage.getItem(LS.key) || '').trim();
   if (!key) { toast('Enter and save your Anthropic API key in the top bar first.', 'error'); throw new Error('no-key'); }
@@ -436,10 +413,7 @@ async function processQueue(){
     if (item.status !== 'queued') continue;
     item.status = 'processing'; renderQueue();
     try {
-      const b64 = await fileToB64(item.file);
-      const block = item.file.type === 'application/pdf'
-        ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 } }
-        : { type:'image', source:{ type:'base64', media_type:item.file.type, data:b64 } };
+      const block = await fileToBlock(item.file);
       const data = await callClaude(
         [ block, { type:'text', text:'Extract the liquidation fields from this receipt/invoice.' } ],
         LIQ_SYSTEM, jsonSchema(LIQ_FIELDS));
@@ -462,6 +436,14 @@ const fileToB64 = file => new Promise((res, rej) => {
   r.onerror = rej;
   r.readAsDataURL(file);
 });
+
+/* Turn a File into a Claude content block (image or PDF document). */
+async function fileToBlock(file){
+  const b64 = await fileToB64(file);
+  return file.type === 'application/pdf'
+    ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 } }
+    : { type:'image', source:{ type:'base64', media_type:file.type, data:b64 } };
+}
 
 function renderQueue(){
   $('queueList').innerHTML = queue.map(it => {
@@ -488,35 +470,6 @@ function loadQueueItem(item){
   if (!isPdf) $('previewImg').src = item.url;
   icons();
 }
-
-/* ================= EMAIL EXTRACTOR ================= */
-$('modeLiq').addEventListener('click', () => setEmailMode('liq'));
-$('modeCA').addEventListener('click', () => setEmailMode('ca'));
-function setEmailMode(m){
-  emailMode = m;
-  $('modeLiq').className = 'emailMode px-4 py-2 rounded-lg text-sm ' + (m==='liq' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-300');
-  $('modeCA').className  = 'emailMode px-4 py-2 rounded-lg text-sm ' + (m==='ca'  ? 'bg-slate-900 text-white' : 'bg-white border border-slate-300');
-  $('emailLiqPane').classList.toggle('hidden', m !== 'liq');
-  $('emailCAPane').classList.toggle('hidden', m !== 'ca');
-}
-
-$('processEmail').addEventListener('click', async () => {
-  const body = $('emailBody').value.trim();
-  if (!body) return toast('Paste the email body first.', 'warn');
-  const btn = $('processEmail');
-  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>Processing...'; icons();
-  try {
-    if (emailMode === 'liq') {
-      const data = await callClaude([{type:'text', text:'Extract liquidation fields from this email:\n\n' + body}], LIQ_SYSTEM, jsonSchema(LIQ_FIELDS));
-      setForm('e_', LIQ_FIELDS, data); recalcVAT('e_');
-    } else {
-      const data = await callClaude([{type:'text', text:'Extract CA request fields from this email:\n\n' + body}], CA_SYSTEM, jsonSchema(CA_FIELDS));
-      setForm('c_', CA_FIELDS, data);
-    }
-    toast('Email processed — review highlighted fields.');
-  } catch {}
-  btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" class="w-4 h-4"></i>Process Email'; icons();
-});
 
 /* ================= AUDIT FLAG ENGINE ================= */
 function auditLiq(f){
@@ -565,13 +518,14 @@ function computeVatInto(f){
   f.vat = (Math.round((incl - excl) * 100) / 100).toFixed(2);
 }
 
-async function commitLiqEntry(f, type, copy = true){
+async function commitLiqEntry(f, type, copy = true, extra = {}){
   computeVatInto(f);
   if (copy) await copyText(LIQ_FIELDS.map(([k]) => f[k]).join('\t'));
   const flags = auditLiq(f);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.establishment_name,
     invoice: f.invoice_number, amount: num(f.amount) ?? 0, type, status: flags.length ? 'Flagged' : 'Success',
-    flags, resolved: false, included: true, data: f });
+    flags, resolved: false, included: true, data: f,
+    summary: extra.summary || '', attachments: extra.attachments || [] });
   save(LS.hist, hist);
   const b = budgets.find(x => x.chapter.toLowerCase() === (f.chapter||'').toLowerCase());
   if (b) {
@@ -589,23 +543,17 @@ async function commitLiq(prefix, type){
   toast(flags.length ? `Row copied but FLAGGED: ${flags[0]}` : 'Row copied — paste into the master sheet.', flags.length ? 'warn' : 'success');
 }
 $('copyLiqR').addEventListener('click', () => commitLiq('r_', 'Image'));
-$('copyLiqE').addEventListener('click', () => commitLiq('e_', 'Email'));
 
-async function commitCAEntry(f, copy = true){
+async function commitCAEntry(f, copy = true, extra = {}){
   if (copy) await copyText(CA_FIELDS.map(([k]) => f[k]).join('\t'));
   const flags = auditCA(f);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.requestor_name,
     invoice: '', amount: num(f.amount_requested) ?? 0, type: 'CA Request',
-    status: flags.length ? 'Flagged' : 'Success', flags, resolved: false, included: true, data: f });
+    status: flags.length ? 'Flagged' : 'Success', flags, resolved: false, included: true, data: f,
+    summary: extra.summary || '', attachments: extra.attachments || [] });
   save(LS.hist, hist); renderAll();
   return flags;
 }
-
-$('copyCA').addEventListener('click', async () => {
-  const f = getForm('c_', CA_FIELDS);
-  const flags = await commitCAEntry(f);
-  toast(flags.length ? `CA row copied but FLAGGED: ${flags[0]}` : 'CA row copied — paste into the CA tracker.', flags.length ? 'warn' : 'success');
-});
 
 document.querySelectorAll('.copyHeader').forEach(b => b.addEventListener('click', async () => {
   await copyText(LIQ_FIELDS.map(([,l]) => l).join('\t'));
@@ -717,8 +665,11 @@ function renderHistory(){
 window.viewEntry = id => {
   const h = hist.find(x => x.id === id); if (!h) return;
   const fields = h.type === 'CA Request' ? CA_FIELDS : LIQ_FIELDS;
+  const atts = (h.attachments || []).filter(a => a.url);
   openModal(`<h2 class="font-bold text-lg mb-1">${h.type} · ${new Date(h.ts).toLocaleString()}</h2>
+    ${h.summary ? `<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-slate-700 mb-3"><b class="text-indigo-700">Summary:</b> ${esc(h.summary)}</div>` : ''}
     ${h.flags?.length ? `<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mb-3"><b>Audit flags:</b><ul class="list-disc ml-4 mt-1">${h.flags.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></div>` : ''}
+    ${atts.length ? `<div class="bg-slate-50 rounded-lg p-3 text-xs mb-3"><b class="text-slate-600">Attached receipts (${atts.length}):</b><ul class="list-disc ml-4 mt-1">${atts.map((a,i)=>`<li><a href="${esc(a.url)}" target="_blank" rel="noopener" class="text-indigo-600 underline break-all">${esc(a.name) || 'Attachment '+(i+1)}</a></li>`).join('')}</ul></div>` : ''}
     <dl class="text-sm divide-y divide-slate-100">${fields.map(([k,l]) => `<div class="py-1.5 grid grid-cols-2 gap-2"><dt class="text-slate-500">${esc(l)}</dt><dd class="break-words">${esc(h.data?.[k]) || '<span class="text-slate-300">—</span>'}</dd></div>`).join('')}</dl>
     <div class="mt-4 text-right"><button onclick="closeModal()" class="px-4 py-2 text-sm bg-slate-900 text-white rounded-lg">Close</button></div>`);
 };
@@ -788,11 +739,12 @@ function renderDashboard(){
     <i data-lucide="${ic}" class="w-5 h-5 ${c}"></i>
     <p class="text-xs text-slate-500 mt-2">${l}</p><p class="text-xl font-bold mt-0.5 break-words">${v}</p></div>`).join('');
 
-  $('activityFeed').innerHTML = hist.slice(0,5).map(h => `<div class="flex items-center gap-3 border-b border-slate-50 pb-2">
-    <i data-lucide="${h.type==='Image'?'scan-line':h.type==='CA Request'?'hand-coins':'mail'}" class="w-4 h-4 text-slate-400"></i>
+  $('activityFeed').innerHTML = hist.slice(0,5).map(h => `<div class="flex items-start gap-3 border-b border-slate-50 pb-2">
+    <i data-lucide="${h.type==='Image'?'scan-line':h.type==='CA Request'?'hand-coins':'mail'}" class="w-4 h-4 text-slate-400 mt-0.5"></i>
     <div class="flex-1 min-w-0"><p class="truncate">${esc(h.name) || esc(h.chapter) || '(unnamed)'}</p>
+    ${h.summary ? `<p class="text-[11px] text-slate-500 line-clamp-2">${esc(h.summary)}</p>` : ''}
     <p class="text-[11px] text-slate-400">${new Date(h.ts).toLocaleString()}</p></div>
-    <span class="text-sm font-medium">${php(h.amount)}</span>
+    <span class="text-sm font-medium whitespace-nowrap">${php(h.amount)}</span>
     <span class="text-[10px] px-2 py-0.5 rounded-full ${h.status==='Flagged'&&!h.resolved?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'}">${h.status}</span>
     <button class="text-slate-300 hover:text-red-500 shrink-0" onclick="delEntry('${h.id}')" title="Delete this entry (e.g. accidental duplicate)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
   </div>`).join('') || '<p class="text-slate-400 text-sm">Nothing processed yet.</p>';
@@ -805,8 +757,123 @@ function renderDashboard(){
     <div class="flex justify-between text-xs mb-1"><span>${esc(ch)}</span><span class="font-medium">${php(amt)}</span></div>
     <div class="bg-slate-100 rounded-full h-2.5"><div class="bg-indigo-500 h-2.5 rounded-full" style="width:${amt/max*100}%"></div></div>
   </div>`).join('') || '<p class="text-slate-400 text-sm">No liquidations logged yet.</p>';
+
+  renderReportStats();
   icons();
 }
+
+/* ================= FINANCE REPORT ================= */
+/* Aggregate the report-included entries into a plain data object — the single
+   source of truth for both the on-screen stats and the AI narrative. */
+function reportData(){
+  const rep = hist.filter(inReport);
+  const liq = rep.filter(h => h.type !== 'CA Request');
+  const ca = rep.filter(h => h.type === 'CA Request');
+  const sum = arr => arr.reduce((s,h) => s + (h.amount || 0), 0);
+  const byChapter = {};
+  liq.forEach(h => { const c = h.chapter || '(no chapter)'; byChapter[c] = (byChapter[c]||0) + (h.amount||0); });
+  const byCategory = {};
+  liq.forEach(h => { const c = h.data?.particulars || h.data?.hq_budget_allocation_category || '(uncategorized)'; byCategory[c] = (byCategory[c]||0) + (h.amount||0); });
+  const flags = hist.filter(h => h.status === 'Flagged' && !h.resolved)
+    .map(h => ({ name: h.name || h.chapter || '(unnamed)', chapter: h.chapter, amount: h.amount, reasons: h.flags || [] }));
+  const budgetStatus = budgets.map(b => {
+    const spent = spentFor(b.chapter);
+    return { chapter: b.chapter, category: b.category, allocated: b.allocated, spent, remaining: b.allocated - spent,
+      pct: b.allocated > 0 ? Math.round(spent / b.allocated * 100) : 0 };
+  });
+  return {
+    totalLiquidated: sum(liq), totalCARequested: sum(ca),
+    liqCount: liq.length, caCount: ca.length, excludedCount: hist.length - rep.length,
+    openFlags: flags.length,
+    byChapter: Object.entries(byChapter).sort((a,b) => b[1]-a[1]),
+    byCategory: Object.entries(byCategory).sort((a,b) => b[1]-a[1]),
+    flags, budgetStatus,
+  };
+}
+
+function renderReportStats(){
+  const d = reportData();
+  const chRows = d.byChapter.length
+    ? d.byChapter.map(([c,a]) => `<tr class="border-t border-slate-50"><td class="py-1 pr-2">${esc(c)}</td><td class="py-1 text-right font-medium">${php(a)}</td></tr>`).join('')
+    : '<tr><td class="py-1 text-slate-400" colspan="2">No liquidations yet.</td></tr>';
+  const catRows = d.byCategory.length
+    ? d.byCategory.slice(0,8).map(([c,a]) => `<tr class="border-t border-slate-50"><td class="py-1 pr-2">${esc(c)}</td><td class="py-1 text-right font-medium">${php(a)}</td></tr>`).join('')
+    : '<tr><td class="py-1 text-slate-400" colspan="2">No liquidations yet.</td></tr>';
+  const overBudget = d.budgetStatus.filter(b => b.remaining < 0);
+  $('reportStats').innerHTML = `
+    <div>
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Liquidations by Chapter</p>
+      <table class="w-full"><tbody>${chRows}</tbody></table>
+    </div>
+    <div>
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Spending by Particular / Category</p>
+      <table class="w-full"><tbody>${catRows}</tbody></table>
+    </div>
+    <div class="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600">${php(d.totalLiquidated)}</p><p class="text-[10px] text-slate-400">${d.liqCount} entr${d.liqCount===1?'y':'ies'}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">CA Requested</p><p class="font-bold text-sky-600">${php(d.totalCARequested)}</p><p class="text-[10px] text-slate-400">${d.caCount} request${d.caCount===1?'':'s'}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${d.openFlags?'text-amber-600':'text-slate-500'}">${d.openFlags}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Over Budget</p><p class="font-bold ${overBudget.length?'text-red-600':'text-slate-500'}">${overBudget.length}</p><p class="text-[10px] text-slate-400">chapter${overBudget.length===1?'':'s'}</p></div>
+    </div>`;
+}
+
+/* Tiny markdown → HTML for the narrative (headings, bold, bullets, paragraphs). */
+function miniMd(md){
+  const lines = String(md||'').split('\n');
+  let html = '', inList = false;
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) { html += '<ul class="list-disc ml-5 my-2 space-y-1">'; inList = true; }
+      html += `<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (!line) continue;
+      if (/^#{1,3}\s+/.test(line)) html += `<h4 class="font-semibold mt-3 mb-1">${inline(line.replace(/^#{1,3}\s+/, ''))}</h4>`;
+      else html += `<p class="my-1.5">${inline(line)}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html || '<p class="text-slate-400">No content.</p>';
+}
+
+const REPORT_SYSTEM = `You are a finance officer writing a concise internal finance report for a nonprofit's chapter liquidation and cash-advance program.
+You are given aggregated JSON figures computed from the logged submissions. Write a clear, professional report in markdown with these sections:
+## Overview — totals liquidated vs cash-advance requested, and submission counts.
+## Spending Highlights — which chapters and categories drive spending; note any concentration.
+## Budget Status — chapters approaching or exceeding their allocation (call these out explicitly).
+## Flags & Follow-ups — summarize open audit flags and what should be reviewed.
+Rules: use PHP for money (e.g. PHP 12,345.00). Base every statement strictly on the numbers given — never invent figures. Keep it under ~250 words. If there is little or no data, say so plainly.`;
+
+function renderNarrative(text, ts){
+  $('reportNarrative').innerHTML = miniMd(text)
+    + (ts ? `<p class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-100">Generated ${new Date(ts).toLocaleString()} — click Generate Narrative to refresh with the latest entries.</p>` : '');
+  $('copyReport').classList.toggle('hidden', !text);
+}
+
+$('genReport').addEventListener('click', async () => {
+  const d = reportData();
+  if (!d.liqCount && !d.caCount) return toast('No entries yet — process some emails or receipts first.', 'warn');
+  const btn = $('genReport');
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>Generating...'; icons();
+  try {
+    const data = await callClaude(
+      [{ type:'text', text:'Write the finance report from these aggregated figures:\n\n' + JSON.stringify(d, null, 2) }],
+      REPORT_SYSTEM,
+      { type:'object', properties:{ report:{ type:'string', description:'The finance report in markdown.' } }, required:['report'], additionalProperties:false });
+    const stamp = new Date().toISOString();
+    save(LS.report, { text: data.report, ts: stamp });
+    renderNarrative(data.report, stamp);
+    toast('Finance report generated.');
+  } catch {}
+  btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" class="w-4 h-4"></i>Generate Narrative'; icons();
+});
+
+$('copyReport').addEventListener('click', async () => {
+  const saved = load(LS.report, null);
+  if (saved?.text) { await copyText(saved.text); toast('Report copied.'); }
+});
 
 /* ================= GMAIL AUTO-INGESTION ================= */
 const GQ_DEFAULT = 'subject:"[DEVCON Form]"';
@@ -820,10 +887,11 @@ let gToken = null, gTokenClient = null, gInbox = [], gAutoTimer = null, gAutoBus
 let gProcessed = load(LS.gproc, {});   // messageId -> 'processed' | 'skipped'
 const gBodies = {};                    // messageId -> plain-text body cache
 
-/* Combined classify + extract schema: doc_type + union of both field sets */
+/* Combined classify + extract schema: doc_type + summary + union of both field sets */
 function comboSchema(){
   const props = { doc_type: { type:'string', enum:['liquidation','ca_request','other'],
-    description:'liquidation = chapter liquidation/expense/receipt submission; ca_request = Cash Advance request; other = anything else' } };
+    description:'liquidation = chapter liquidation/expense/receipt submission; ca_request = Cash Advance request; other = anything else' },
+    summary: { type:'string', description:'A concise 1–2 sentence plain-English summary of this submission: who, which chapter, what it is for, and the amount. Empty string if doc_type is other.' } };
   [...LIQ_FIELDS, ...CA_FIELDS].forEach(([k,l]) => { if (!props[k]) props[k] = propFor(k, l); });
   return { type:'object', properties: props, required: Object.keys(props), additionalProperties:false };
 }
@@ -836,6 +904,7 @@ Step 1 — classify doc_type:
 - 'other' for anything else (confirmations, newsletters, unrelated mail)
 Subject hints: emails titled "[DEVCON Form] ... Request for Chapter Event Support or Programs Event Seed Fund from HQ National Office" are 'ca_request'; the same form title containing "Liquidation" is 'liquidation'.
 Step 2 — extract the fields belonging to that document type into the schema.
+Step 3 — write a concise 1–2 sentence 'summary' of the submission in plain English (who / which chapter / what it is for / the amount). If a receipt image or PDF is also provided, prefer the figures visible on the receipt over the typed form values when they disagree, and note any discrepancy in the summary.
 Rules:
 - If a value cannot be determined with 100% certainty, return "" for that field. Never guess.
 - Fields belonging to the OTHER document type must be "". For doc_type 'other', ALL fields must be "".
@@ -986,6 +1055,25 @@ function getBody(payload){
   return '';
 }
 
+const MAX_EMAIL_ATTACHMENTS = 3;   // cap Drive fetches per email to keep API calls sane
+
+/* Pull any uploaded receipts linked in the email body from Drive, so Claude reads
+   the actual receipt instead of only the typed form values. Returns
+   { blocks, attachments } — attachments = [{url, name}] for display/audit. */
+async function fetchEmailReceipts(body){
+  const links = driveLinksIn(body).slice(0, MAX_EMAIL_ATTACHMENTS);
+  const blocks = [], attachments = [];
+  for (const { id, url } of links) {
+    try {
+      const file = await fetchDriveFile(id);
+      if (!file) { attachments.push({ url, name: '(could not open)' }); continue; }
+      blocks.push(await fileToBlock(file));
+      attachments.push({ url, name: file.name });
+    } catch { attachments.push({ url, name: '(could not open)' }); }
+  }
+  return { blocks, attachments };
+}
+
 window.gProcess = async id => {
   const m = gInbox.find(x => x.id === id);
   if (!m || m.busy) return;
@@ -995,17 +1083,29 @@ window.gProcess = async id => {
     const body = getBody(full.payload).trim();
     gBodies[id] = body;
     if (!body) throw new Error('empty email body');
-    const data = await callClaude(
-      [{ type:'text', text:`Classify and extract this form-notification email.\n\nSubject: ${m.subject}\nFrom: ${m.from}\n\n${body}` }],
-      COMBO_SYSTEM, comboSchema());
+
+    // Google Forms file-upload answers arrive as Drive links, not attachments —
+    // fetch and attach them so the extraction sees the real receipt.
+    const { blocks, attachments } = await fetchEmailReceipts(body);
+    const receiptNote = blocks.length
+      ? `\n\n${blocks.length} uploaded receipt file(s) from this submission are attached above — cross-check the amount and details against them.`
+      : '';
+    const content = [
+      ...blocks,
+      { type:'text', text:`Classify and extract this form-notification email.\n\nSubject: ${m.subject}\nFrom: ${m.from}\n\n${body}${receiptNote}` },
+    ];
+    const data = await callClaude(content, COMBO_SYSTEM, comboSchema());
+    const firstLink = attachments.find(a => a.url)?.url || '';
+
     if (data.doc_type === 'liquidation') {
       const f = {}; LIQ_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
-      const flags = await commitLiqEntry(f, 'Email', false);
+      if (!f.gdrive_link && firstLink) f.gdrive_link = firstLink;
+      const flags = await commitLiqEntry(f, 'Email', false, { summary: data.summary, attachments });
       gProcessed[id] = 'processed';
       toast(flags.length ? `Liquidation logged (FLAGGED: ${flags[0]})` : `Liquidation logged: ${m.subject}`, flags.length ? 'warn' : 'success');
     } else if (data.doc_type === 'ca_request') {
       const f = {}; CA_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
-      const flags = await commitCAEntry(f, false);
+      const flags = await commitCAEntry(f, false, { summary: data.summary, attachments });
       gProcessed[id] = 'processed';
       toast(flags.length ? `CA request logged (FLAGGED: ${flags[0]})` : `CA request logged: ${m.subject}`, flags.length ? 'warn' : 'success');
     } else {
@@ -1029,21 +1129,20 @@ window.gView = async id => {
       const full = await gmailGet(`messages/${id}?format=full`);
       gBodies[id] = getBody(full.payload);
     }
+    const links = driveLinksIn(gBodies[id]);
+    const linksHtml = links.length ? `<div class="mb-3">
+      <p class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Uploaded receipts / files in this submission (${links.length})</p>
+      <ul class="text-xs space-y-1">${links.map((l,i) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener" class="text-indigo-600 underline break-all">Attachment ${i+1} — open in Drive</a></li>`).join('')}</ul>
+      <p class="text-[11px] text-slate-400 mt-1">These are fetched and read automatically when you Process this email.</p>
+    </div>` : '';
     openModal(`<h2 class="font-bold text-lg mb-1">${esc(m.subject)}</h2>
       <p class="text-xs text-slate-400 mb-3">${esc(m.from)} &middot; ${esc(m.date)}</p>
+      ${linksHtml}
       <pre class="text-xs bg-slate-50 rounded-lg p-3 whitespace-pre-wrap max-h-96 overflow-y-auto">${esc(gBodies[id])}</pre>
       <div class="mt-4 flex justify-end gap-2">
-        <button class="px-4 py-2 text-sm border border-slate-300 rounded-lg" onclick="sendToEmailTab('${id}')">Send to Email Tab</button>
         <button onclick="closeModal()" class="px-4 py-2 text-sm bg-slate-900 text-white rounded-lg">Close</button>
       </div>`);
   } catch (e) { toast('Failed to load email: ' + e.message, 'error'); }
-};
-
-window.sendToEmailTab = id => {
-  $('emailBody').value = gBodies[id] || '';
-  closeModal();
-  document.querySelector('[data-tab=email]').click();
-  toast('Email body loaded into the Email Extractor.', 'info');
 };
 
 $('gAuto').addEventListener('change', () => { save(LS.gauto, $('gAuto').checked); startAutoLoop(); });
@@ -1070,6 +1169,47 @@ function driveIdFrom(link){
   const m = link.match(/\/d\/([A-Za-z0-9_-]{20,})/) || link.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
   return m ? m[1] : null;
 }
+/* Find every distinct Google Drive file link inside a block of text (e.g. a Forms
+   notification email where uploaded receipts appear as drive.google.com links). */
+function driveLinksIn(text){
+  const out = [], seen = new Set();
+  const re = /https?:\/\/(?:drive|docs)\.google\.com\/[^\s"'<>)\]]+/gi;
+  for (const url of (text || '').match(re) || []) {
+    const id = driveIdFrom(url);
+    if (id && !seen.has(id)) { seen.add(id); out.push({ id, url }); }
+  }
+  return out;
+}
+/* Fetch a Drive file as a browser File. Uses the connected account when available
+   (private files), else the public image CDN. Returns null if unreachable. */
+async function fetchDriveFile(id){
+  let blob = null, name = 'drive-file', mime = '';
+  if (gToken) {
+    const metaR = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,thumbnailLink&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + gToken } });
+    if (metaR.ok) {
+      const meta = await metaR.json();
+      name = meta.name || name; mime = meta.mimeType || '';
+      if (DRIVE_OK_MIME.includes(mime)) {
+        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`,
+          { headers: { Authorization: 'Bearer ' + gToken } });
+        if (r.ok) blob = await r.blob();
+      } else if (meta.thumbnailLink) {
+        // HEIC / unsupported formats: use Drive's own JPEG render of the file
+        const r = await fetch(meta.thumbnailLink.replace(/=s\d+[^&]*$/, '=s2048'));
+        if (r.ok) { blob = await r.blob(); mime = 'image/jpeg'; name = name.replace(/\.\w+$/, '') + '.jpg'; }
+      }
+    }
+  }
+  if (!blob) {
+    // Public "anyone with link" fallback — Drive's image CDN serves a JPEG render, no auth needed
+    const r = await fetch(`https://lh3.googleusercontent.com/d/${id}=s2048`);
+    if (r.ok) { blob = await r.blob(); mime = blob.type || 'image/jpeg'; name = 'drive-' + id.slice(0, 8) + '.jpg'; }
+  }
+  if (!blob || !blob.size) return null;
+  if (!DRIVE_OK_MIME.includes(mime)) mime = 'image/jpeg';
+  return new File([blob], name, { type: mime });
+}
 $('fetchDrive').addEventListener('click', async () => {
   const link = $('driveLink').value.trim();
   const id = driveIdFrom(link);
@@ -1077,32 +1217,8 @@ $('fetchDrive').addEventListener('click', async () => {
   const btn = $('fetchDrive');
   btn.disabled = true; btn.textContent = 'Fetching...';
   try {
-    let blob = null, name = 'drive-file', mime = '';
-    if (gToken) {
-      const metaR = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,thumbnailLink&supportsAllDrives=true`,
-        { headers: { Authorization: 'Bearer ' + gToken } });
-      if (metaR.ok) {
-        const meta = await metaR.json();
-        name = meta.name || name; mime = meta.mimeType || '';
-        if (DRIVE_OK_MIME.includes(mime)) {
-          const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`,
-            { headers: { Authorization: 'Bearer ' + gToken } });
-          if (r.ok) blob = await r.blob();
-        } else if (meta.thumbnailLink) {
-          // HEIC / unsupported formats: use Drive's own JPEG render of the file
-          const r = await fetch(meta.thumbnailLink.replace(/=s\d+[^&]*$/, '=s2048'));
-          if (r.ok) { blob = await r.blob(); mime = 'image/jpeg'; name = name.replace(/\.\w+$/, '') + '.jpg'; }
-        }
-      }
-    }
-    if (!blob) {
-      // Public "anyone with link" fallback — Drive's image CDN serves a JPEG render, no auth needed
-      const r = await fetch(`https://lh3.googleusercontent.com/d/${id}=s2048`);
-      if (r.ok) { blob = await r.blob(); mime = blob.type || 'image/jpeg'; name = 'drive-' + id.slice(0, 8) + '.jpg'; }
-    }
-    if (!blob || !blob.size) throw new Error('unreachable');
-    if (!DRIVE_OK_MIME.includes(mime)) mime = 'image/jpeg';
-    const file = new File([blob], name, { type: mime });
+    const file = await fetchDriveFile(id);
+    if (!file) throw new Error('unreachable');
     queue.push({ id: uid(), file, status: 'queued', data: null, url: URL.createObjectURL(file), gdriveLink: link });
     $('driveLink').value = '';
     renderQueue(); processQueue();
@@ -1133,7 +1249,10 @@ $('saveKey').addEventListener('click', () => {
 });
 
 function renderAll(){ renderDashboard(); renderHistory(); renderBudgets(); }
-renderAll(); icons();
+renderAll();
+const savedReport = load(LS.report, null);
+if (savedReport?.text) renderNarrative(savedReport.text, savedReport.ts);
+icons();
 </script>
 </body>
 </html>
