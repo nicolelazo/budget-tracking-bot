@@ -5,7 +5,7 @@
    server-side so the browser never holds a Supabase key.
 
    Required env vars (same ones the weekly cron already uses):
-     SUPABASE_URL          e.g. https://xlprsjxcxcrdxqbthtpk.supabase.co
+     SUPABASE_URL          e.g. https://YOUR-PROJECT.supabase.co
      SUPABASE_SERVICE_KEY  the service_role key (Supabase → Settings → API)
    Optional:
      APP_SYNC_SECRET       if set, the client must send the same value as x-sync-key
