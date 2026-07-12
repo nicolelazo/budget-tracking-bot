@@ -5,14 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finance Liquidation &amp; Budget Manager Bot</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  /* ===== Minimal black palette =====
+     Remaps Tailwind's accent ('indigo') to a monochrome near-black scale and
+     'slate' to a pure neutral gray — so the whole UI reads as minimal black/gray
+     without touching individual class names. Red / amber / emerald are kept, used
+     sparingly, only for genuine status (alerts, over-budget, success). */
+  tailwind.config = { theme: { extend: { colors: {
+    indigo: { 50:'#fafafa',100:'#f4f4f5',200:'#e4e4e7',300:'#a1a1aa',400:'#a3a3a3',
+              500:'#404040',600:'#171717',700:'#0a0a0a',800:'#0a0a0a',900:'#000000' },
+    slate:  { 50:'#fafafa',100:'#f5f5f5',200:'#e5e5e5',300:'#d4d4d4',400:'#a3a3a3',
+              500:'#737373',600:'#525252',700:'#404040',800:'#262626',900:'#171717' },
+  } } } };
+</script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="lib/report.js"></script>
 <style>
-  ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
-  .tab-btn.active{background:#1e293b;color:#fff}
+  ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:#d4d4d4;border-radius:4px}
+  .tab-btn{transition:background .12s ease}
+  .tab-btn.active{background:#000;color:#fff;box-shadow:inset 3px 0 0 #fff}
   .field-review{background:#fefce8;border-color:#facc15}
-  .drop-active{border-color:#6366f1;background:#eef2ff}
+  .drop-active{border-color:#171717;background:#f5f5f5}
+  details.card > summary{cursor:pointer;list-style:none}
+  details.card > summary::-webkit-details-marker{display:none}
+  details.card > summary .chev{transition:transform .15s ease}
+  details.card[open] > summary .chev{transform:rotate(90deg)}
 </style>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen overflow-hidden flex flex-col">
@@ -38,11 +56,12 @@
 
 <!-- ===== SIDEBAR ===== -->
 <nav class="w-60 bg-slate-900 text-slate-300 flex flex-col py-4 shrink-0">
-  <button class="tab-btn active flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dashboard Overview</button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="receipt"><i data-lucide="scan-line" class="w-4 h-4"></i>Receipt Image Extractor</button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail"><i data-lucide="inbox" class="w-4 h-4"></i>Gmail Inbox<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="budget"><i data-lucide="piggy-bank" class="w-4 h-4"></i>Budget Tracker</button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="history"><i data-lucide="history" class="w-4 h-4"></i>Logs / History</button>
+  <p class="px-5 pb-2 text-[10px] uppercase tracking-wider text-slate-500">Menu</p>
+  <button class="tab-btn active flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="overview" title="Your totals, reports, and the weekly Telegram summary"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dashboard</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="receipt" title="Upload a receipt photo or PDF and let AI read it"><i data-lucide="scan-line" class="w-4 h-4"></i>Scan a Receipt</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail" title="Auto-read liquidation & cash-advance form emails"><i data-lucide="inbox" class="w-4 h-4"></i>Email Submissions<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="budget" title="Set each chapter's budget and watch what's left"><i data-lucide="piggy-bank" class="w-4 h-4"></i>Budgets</button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="history" title="Everything you've logged, with search and export"><i data-lucide="history" class="w-4 h-4"></i>History</button>
   <div class="mt-auto px-5 text-[10px] text-slate-500">R&amp;D Prototype v2 · claude-opus-4-8</div>
 </nav>
 
@@ -51,7 +70,33 @@
 
   <!-- ============ TAB: OVERVIEW ============ -->
   <section id="tab-overview" class="tab-panel">
-    <h1 class="text-2xl font-bold mb-5">Dashboard Overview</h1>
+    <h1 class="text-2xl font-bold mb-1">Dashboard</h1>
+    <p class="text-sm text-slate-500 mb-5">A snapshot of everything logged — money in, money out, and what still needs attention.</p>
+
+    <!-- ===== GETTING STARTED (collapsible; new users open it, everyone else ignores it) ===== -->
+    <details class="card bg-white rounded-xl shadow p-5 mb-6" id="gettingStarted">
+      <summary class="flex items-center gap-2 font-semibold select-none">
+        <i data-lucide="chevron-right" class="chev w-4 h-4 text-slate-400"></i>
+        <i data-lucide="sparkles" class="w-4 h-4 text-slate-700"></i>
+        New here? Start with this 60-second guide
+      </summary>
+      <div class="mt-4 grid md:grid-cols-3 gap-4 text-sm">
+        <div class="bg-slate-50 rounded-lg p-4">
+          <div class="flex items-center gap-2 font-medium mb-1"><span class="bg-slate-900 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center">1</span>Add your key once</div>
+          <p class="text-slate-500 text-xs leading-relaxed">Paste your Anthropic API key in the top bar and hit <b>Save</b>. It stays in this browser only. The AI needs it to read receipts and emails.</p>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-4">
+          <div class="flex items-center gap-2 font-medium mb-1"><span class="bg-slate-900 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center">2</span>Get expenses in</div>
+          <p class="text-slate-500 text-xs leading-relaxed">Three ways: <b>Scan a Receipt</b> (photo/PDF), <b>Email Submissions</b> (reads Google Form emails for you), or type them by hand. Everything lands in <b>History</b>.</p>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-4">
+          <div class="flex items-center gap-2 font-medium mb-1"><span class="bg-slate-900 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center">3</span>Track &amp; report</div>
+          <p class="text-slate-500 text-xs leading-relaxed">Set each chapter's budget under <b>Budgets</b>, then let this page total it up. The weekly summary can auto-send to Telegram every Monday.</p>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-400 mt-3">Tip: hover any section title or button for a short explanation. Nothing here is sent anywhere except the AI service and — only if you turn it on — your own Telegram group.</p>
+    </details>
+
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6" id="metricCards"></div>
     <div class="grid lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-xl shadow p-5">
@@ -99,9 +144,9 @@
             <input id="tgToken" type="password" placeholder="123456:ABC-..." class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
           <label class="block"><span class="text-xs text-slate-500">Group chat ID <span class="text-slate-400">(usually negative, e.g. -1001234567890)</span></span>
             <input id="tgChat" placeholder="-100..." class="mt-0.5 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm"></label>
-          <label class="flex items-center gap-2 text-sm pt-1">
-            <input id="cloudSync" type="checkbox" class="accent-indigo-600">
-            Cloud sync — push dashboard data to the server so the Monday cron can read it
+          <label class="flex items-start gap-2 text-sm pt-1">
+            <input id="cloudSync" type="checkbox" class="accent-indigo-600 mt-0.5">
+            <span><b>Cloud storage</b> (recommended) — saves your history, budgets and setup so they reload automatically on any device, and lets the Monday cron send the report with no browser open. Your data stays until you delete it. <span class="text-slate-400">Secrets (API key, bot token) are never stored in the cloud — only in this browser.</span></span>
           </label>
           <div class="flex gap-2 flex-wrap">
             <button id="tgTest" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="send-horizontal" class="w-4 h-4"></i>Send test report now</button>
@@ -109,8 +154,11 @@
           </div>
           <p id="tgStatus" class="text-xs text-slate-400">Not sent yet.</p>
         </div>
-        <div class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
-          <b>One-time server setup (Vercel → Settings → Environment Variables):</b>
+        <details class="card bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
+          <summary class="flex items-center gap-1.5 font-semibold text-slate-600 select-none"><i data-lucide="chevron-right" class="chev w-3.5 h-3.5"></i>One-time server setup (only needed once, by whoever deploys)</summary>
+          <div class="mt-2">
+          <b>Vercel → Settings → Environment Variables:</b>
+          <p class="mt-1">The two <code>SUPABASE_*</code> vars power both cross-device auto-save/restore <b>and</b> the Monday cron. The <code>TELEGRAM_*</code>/<code>CRON_SECRET</code> vars are only needed for the automatic weekly message.</p>
           <ul class="list-disc ml-4 mt-1 space-y-0.5">
             <li><code>SUPABASE_URL</code> = <code>https://xlprsjxcxcrdxqbthtpk.supabase.co</code></li>
             <li><code>SUPABASE_SERVICE_KEY</code> = your Supabase <b>service_role</b> key (Supabase → Settings → API)</li>
@@ -122,15 +170,16 @@
           <b class="block mt-2">Getting the chat ID:</b> add the bot to the group, send any message, then open
           <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> and copy <code>chat.id</code>.
           <p class="mt-2">The Monday schedule lives in <code>vercel.json</code> (<code>0 1 * * 1</code> UTC = 09:00 PH). Redeploy after adding the env vars.</p>
-        </div>
+          </div>
+        </details>
       </div>
     </div>
   </section>
 
   <!-- ============ TAB: RECEIPT ============ -->
   <section id="tab-receipt" class="tab-panel hidden">
-    <h1 class="text-2xl font-bold mb-1">Receipt Image Extractor</h1>
-    <p class="text-sm text-slate-500 mb-5">Drop receipt images or PDFs. Files are queued and processed one by one via Claude vision.</p>
+    <h1 class="text-2xl font-bold mb-1">Scan a Receipt</h1>
+    <p class="text-sm text-slate-500 mb-5">Drop in a photo or PDF of a receipt and the AI reads the fields for you — no typing. Add several at once; they're processed one at a time. Review what it found, then click <b>Copy Row</b> or it's saved to History.</p>
     <div class="grid lg:grid-cols-2 gap-6">
       <div>
         <div id="dropZone" class="border-2 border-dashed border-slate-300 rounded-xl bg-white p-8 text-center cursor-pointer transition">
@@ -169,8 +218,8 @@
 
   <!-- ============ TAB: GMAIL ============ -->
   <section id="tab-gmail" class="tab-panel hidden">
-    <h1 class="text-2xl font-bold mb-1">Gmail Inbox — Auto-Detect Form Emails</h1>
-    <p class="text-sm text-slate-500 mb-5">Connects to your Gmail (read-only) and detects Google Forms notification emails for liquidations and CA requests. Amounts and fields are read from the email body; any uploaded receipts (images/PDFs) or linked Google Sheets/Docs in the submission are auto-fetched from Drive and read too. Each entry also gets an AI summary that feeds the dashboard finance report.</p>
+    <h1 class="text-2xl font-bold mb-1">Email Submissions</h1>
+    <p class="text-sm text-slate-500 mb-5">Reads your Gmail (view-only) for the Google Form emails your chapters submit — liquidations and cash-advance requests — and logs them for you. It pulls the amount and details from the email, <b>and</b> automatically opens any receipt file or linked Google Sheet attached to the form so nothing is missed. Each one gets a short AI summary. Nothing is ever changed or sent from your inbox.</p>
     <div class="grid lg:grid-cols-3 gap-6">
       <div class="bg-white rounded-xl shadow p-5 space-y-3">
         <h2 class="font-semibold flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-indigo-500"></i>Connection Settings</h2>
@@ -188,11 +237,14 @@
           <input id="gAuto" type="checkbox" class="accent-indigo-600">
           Auto-process new emails (checks every 2 min)
         </label>
-        <div class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
-          <b>One-time setup:</b> Google Cloud Console &rarr; enable <b>Gmail API</b> and <b>Google Drive API</b> &rarr; OAuth consent screen (add each team member's email as a test user) &rarr; create <b>OAuth Client ID (Web application)</b> and add <u>every URL you open this app from</u> as an authorized JavaScript origin — e.g. <code>http://localhost:8917</code> and <code>https://your-app.vercel.app</code>.<br><br>
-          This one connection powers both the Gmail inbox here and private Google Drive receipt links in the Receipt tab.<br><br>
+        <details class="card bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
+          <summary class="flex items-center gap-1.5 font-semibold text-slate-600 select-none"><i data-lucide="chevron-right" class="chev w-3.5 h-3.5"></i>How to connect Google (one-time setup)</summary>
+          <div class="mt-2">
+          <b>Google Cloud Console:</b> enable <b>Gmail API</b> and <b>Google Drive API</b> &rarr; OAuth consent screen (add each team member's email as a test user) &rarr; create <b>OAuth Client ID (Web application)</b> and add <u>every URL you open this app from</u> as an authorized JavaScript origin — e.g. <code>http://localhost:8917</code> and <code>https://your-app.vercel.app</code>.<br><br>
+          This one connection powers both the email inbox here and private Google Drive receipt links in the Scan a Receipt tab.<br><br>
           <b>Running locally?</b> Open via <code>start-dashboard.bat</code> — Google sign-in does not work from a file:// page. On a deployed URL (Vercel) it works directly.
-        </div>
+          </div>
+        </details>
       </div>
       <div class="lg:col-span-2 bg-white rounded-xl shadow overflow-hidden self-start">
         <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
@@ -567,7 +619,7 @@ function computeVatInto(f){
 async function commitLiqEntry(f, type, copy = true, extra = {}){
   computeVatInto(f);
   if (copy) await copyText(LIQ_FIELDS.map(([k]) => f[k]).join('\t'));
-  const flags = auditLiq(f);
+  const flags = auditLiq(f).concat(extra.extraFlags || []);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.establishment_name,
     invoice: f.invoice_number, amount: num(f.amount) ?? 0, type, status: flags.length ? 'Flagged' : 'Success',
     flags, resolved: false, included: true, data: f,
@@ -592,7 +644,7 @@ $('copyLiqR').addEventListener('click', () => commitLiq('r_', 'Image'));
 
 async function commitCAEntry(f, copy = true, extra = {}){
   if (copy) await copyText(CA_FIELDS.map(([k]) => f[k]).join('\t'));
-  const flags = auditCA(f);
+  const flags = auditCA(f).concat(extra.extraFlags || []);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.requestor_name,
     invoice: '', amount: num(f.amount_requested) ?? 0, type: 'CA Request',
     status: flags.length ? 'Flagged' : 'Success', flags, resolved: false, included: true, data: f,
@@ -922,7 +974,20 @@ $('copyReport').addEventListener('click', async () => {
 });
 
 /* ================= WEEKLY REPORT / TELEGRAM ================= */
-const currentState = () => ({ hist, budgets, telegram: { chatId: ($('tgChat').value || '').trim() } });
+/* The snapshot pushed to the cloud. Secrets (Anthropic key, Telegram bot token)
+   are intentionally excluded — only working data + non-secret setup is stored, so
+   any device restores itself without exposing keys in the shared row. */
+const currentState = () => ({
+  hist, budgets,
+  telegram: { chatId: ($('tgChat').value || '').trim() },
+  settings: {
+    gClientId: (localStorage.getItem(LS.gcid) || ''),
+    gQuery: (localStorage.getItem(LS.gq) || ''),
+    gauto: load(LS.gauto, false),
+    partOpts,
+    gProcessed,
+  },
+});
 const weeklyReport = () => BudgetReport.buildWeeklyReport(currentState(), Date.now());
 
 const dueBadge = { overdue:'bg-red-100 text-red-700', 'due-soon':'bg-amber-100 text-amber-700',
@@ -964,13 +1029,51 @@ function renderWeeklyReport(){
   icons();
 }
 
-/* --- Cloud sync: push snapshot so the Monday cron can read it (deployed only) --- */
+/* --- Cloud storage: save every change AND restore on open (deployed only) ---
+   `cloudReady` gates pushes until the initial load-from-cloud has finished, so a
+   fresh browser can't overwrite the saved data with its empty local state. */
 let syncTimer = null;
+let cloudReady = false;
 function scheduleSync(){
+  if (!cloudReady) return;                      // don't push before we've loaded
   if (!$('cloudSync')?.checked) return;
   if (location.protocol === 'file:') return;   // needs the deployed API
   clearTimeout(syncTimer);
   syncTimer = setTimeout(syncStateNow, 1500);
+}
+
+/* Overwrite local state with a snapshot pulled from the cloud, then repaint. */
+function applyCloudSnapshot(d){
+  if (Array.isArray(d.hist)) { hist = d.hist; save(LS.hist, hist); }
+  if (Array.isArray(d.budgets)) { budgets = d.budgets; save(LS.bud, budgets); }
+  const s = d.settings || {};
+  if (typeof s.gClientId === 'string') { localStorage.setItem(LS.gcid, s.gClientId); $('gClientId').value = s.gClientId; }
+  if (typeof s.gQuery === 'string' && s.gQuery) { localStorage.setItem(LS.gq, s.gQuery); $('gQuery').value = s.gQuery; }
+  if (typeof s.gauto === 'boolean') { save(LS.gauto, s.gauto); $('gAuto').checked = s.gauto; }
+  if (Array.isArray(s.partOpts) && s.partOpts.length) { partOpts = s.partOpts; save(LS.popts, partOpts); mountForms(true); }
+  if (s.gProcessed && typeof s.gProcessed === 'object') { gProcessed = s.gProcessed; save(LS.gproc, gProcessed); }
+  if (d.telegram && typeof d.telegram.chatId === 'string' && d.telegram.chatId) {
+    localStorage.setItem(LS.tgchat, d.telegram.chatId); $('tgChat').value = d.telegram.chatId;
+  }
+  renderAll();
+}
+
+/* Runs once on startup: pull the saved snapshot so the app restores itself. */
+async function hydrateFromCloud(){
+  if (location.protocol === 'file:' || !$('cloudSync')?.checked) { cloudReady = true; return; }
+  try {
+    const r = await fetch('/api/load-state');
+    if (r.ok) {
+      const j = await r.json();
+      const d = j && j.data;
+      const hasData = d && (Array.isArray(d.hist) && d.hist.length || Array.isArray(d.budgets) && d.budgets.length || (d.settings && Object.keys(d.settings).length));
+      if (hasData) { applyCloudSnapshot(d); toast('Restored your saved data from the cloud.', 'info'); }
+    } else if (r.status === 500) {
+      toast('Cloud storage is on but the server env vars aren’t set yet — data is saved locally only. See the setup note.', 'warn');
+    }
+  } catch { /* offline / not deployed — fall back to local data already rendered */ }
+  cloudReady = true;
+  scheduleSync();   // seed the server if it was empty (harmless if we just loaded)
 }
 async function syncStateNow(showToast){
   if (location.protocol === 'file:') { if (showToast) toast('Cloud sync needs the deployed site, not a local file.', 'warn'); return; }
@@ -985,12 +1088,13 @@ async function syncStateNow(showToast){
 
 $('tgToken').value = localStorage.getItem(LS.tgtoken) || '';
 $('tgChat').value  = localStorage.getItem(LS.tgchat) || '';
-$('cloudSync').checked = load(LS.sync, false);
+$('cloudSync').checked = load(LS.sync, true);   // on by default: data persists across sessions/devices
 $('tgToken').addEventListener('input', () => localStorage.setItem(LS.tgtoken, $('tgToken').value.trim()));
 $('tgChat').addEventListener('input', () => localStorage.setItem(LS.tgchat, $('tgChat').value.trim()));
 $('cloudSync').addEventListener('change', () => {
   save(LS.sync, $('cloudSync').checked);
-  if ($('cloudSync').checked) { toast('Cloud sync on — pushing current data...', 'info'); syncStateNow(true); }
+  if ($('cloudSync').checked) { cloudReady = true; toast('Cloud storage on — saving your data...', 'info'); syncStateNow(true); }
+  else toast('Cloud storage off — data is kept in this browser only from now on.', 'info');
 });
 $('tgSyncNow').addEventListener('click', () => syncStateNow(true));
 
@@ -1203,17 +1307,29 @@ const MAX_EMAIL_ATTACHMENTS = 3;   // cap Drive fetches per email to keep API ca
    Returns { blocks, texts, attachments } — attachments = [{url, name}] for display. */
 async function fetchEmailReceipts(body){
   const links = driveLinksIn(body).slice(0, MAX_EMAIL_ATTACHMENTS);
-  const blocks = [], texts = [], attachments = [];
+  const blocks = [], texts = [], attachments = [], warnings = [];
+  // A form's "link to your liquidation sheet" answer is one of these Drive links.
+  // If we can't open it, say so loudly — the amount then comes only from the
+  // email summary, and the real line items in the sheet went unread.
+  const kindOf = url => /\/spreadsheets\//.test(url) ? 'Google Sheet'
+    : /\/document\//.test(url) ? 'Google Doc' : 'linked file';
   for (const { id, url } of links) {
     try {
       const got = await fetchDriveForEmail(id, url);
-      if (!got) { attachments.push({ url, name: '(could not open)' }); continue; }
+      if (!got) {
+        attachments.push({ url, name: '(could not open — check sharing)' });
+        warnings.push(`A ${kindOf(url)} linked in this submission could not be opened — likely it isn't shared with the connected Google account. Set it to "anyone with the link" or share it, then re-process. Its amounts/line items were NOT read.`);
+        continue;
+      }
       if (got.block) blocks.push(got.block);
       else if (got.text != null) texts.push(`----- ${got.name} -----\n${got.text}`);
       attachments.push({ url, name: got.name });
-    } catch { attachments.push({ url, name: '(could not open)' }); }
+    } catch {
+      attachments.push({ url, name: '(could not open — check sharing)' });
+      warnings.push(`A ${kindOf(url)} linked in this submission could not be opened — likely it isn't shared with the connected Google account. Its amounts/line items were NOT read.`);
+    }
   }
-  return { blocks, texts, attachments };
+  return { blocks, texts, attachments, warnings };
 }
 
 window.gProcess = async id => {
@@ -1228,10 +1344,11 @@ window.gProcess = async id => {
 
     // Google Forms file-upload / sheet-link answers arrive as Drive links, not
     // attachments — fetch them so the extraction sees the real receipt or sheet.
-    const { blocks, texts, attachments } = await fetchEmailReceipts(body);
+    const { blocks, texts, attachments, warnings } = await fetchEmailReceipts(body);
     const notes = [];
     if (blocks.length) notes.push(`${blocks.length} uploaded receipt file(s) from this submission are attached above — cross-check the amount and details against them.`);
     if (texts.length) notes.push(`The contents of ${texts.length} linked Google Sheet/Doc from this submission are included below — treat them as the authoritative source for the amount and line items.`);
+    if (warnings.length) notes.push(warnings.join(' '));
     const sheetSection = texts.length ? `\n\n=== LINKED SHEET / DOC CONTENTS ===\n${texts.join('\n\n')}` : '';
     const receiptNote = notes.length ? `\n\n${notes.join(' ')}` : '';
     const content = [
@@ -1244,12 +1361,12 @@ window.gProcess = async id => {
     if (data.doc_type === 'liquidation') {
       const f = {}; LIQ_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
       if (!f.gdrive_link && firstLink) f.gdrive_link = firstLink;
-      const flags = await commitLiqEntry(f, 'Email', false, { summary: data.summary, attachments });
+      const flags = await commitLiqEntry(f, 'Email', false, { summary: data.summary, attachments, extraFlags: warnings });
       gProcessed[id] = 'processed';
       toast(flags.length ? `Liquidation logged (FLAGGED: ${flags[0]})` : `Liquidation logged: ${m.subject}`, flags.length ? 'warn' : 'success');
     } else if (data.doc_type === 'ca_request') {
       const f = {}; CA_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
-      const flags = await commitCAEntry(f, false, { summary: data.summary, attachments });
+      const flags = await commitCAEntry(f, false, { summary: data.summary, attachments, extraFlags: warnings });
       gProcessed[id] = 'processed';
       toast(flags.length ? `CA request logged (FLAGGED: ${flags[0]})` : `CA request logged: ${m.subject}`, flags.length ? 'warn' : 'success');
     } else {
@@ -1274,10 +1391,12 @@ window.gView = async id => {
       gBodies[id] = getBody(full.payload);
     }
     const links = driveLinksIn(gBodies[id]);
+    const kindOf = url => /\/spreadsheets\//.test(url) ? 'Google Sheet (liquidation detail)'
+      : /\/document\//.test(url) ? 'Google Doc' : 'Receipt / file';
     const linksHtml = links.length ? `<div class="mb-3">
-      <p class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Linked files in this submission — receipts, sheets, or docs (${links.length})</p>
-      <ul class="text-xs space-y-1">${links.map((l,i) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener" class="text-indigo-600 underline break-all">Attachment ${i+1} — open in Drive</a></li>`).join('')}</ul>
-      <p class="text-[11px] text-slate-400 mt-1">These are fetched and read automatically when you Process this email.</p>
+      <p class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Linked in this submission — the form's sheet/receipt answers (${links.length})</p>
+      <ul class="text-xs space-y-1">${links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener" class="text-indigo-600 underline break-all">${esc(kindOf(l.url))} — open in Drive</a></li>`).join('')}</ul>
+      <p class="text-[11px] text-slate-400 mt-1">When you Process this email, any Google Sheet here is read as the authoritative amount &amp; line items; receipts are read too. If a file isn't shared with the connected account, the entry is flagged.</p>
     </div>` : '';
     openModal(`<h2 class="font-bold text-lg mb-1">${esc(m.subject)}</h2>
       <p class="text-xs text-slate-400 mb-3">${esc(m.from)} &middot; ${esc(m.date)}</p>
@@ -1441,10 +1560,11 @@ $('saveKey').addEventListener('click', () => {
 });
 
 function renderAll(){ renderDashboard(); renderHistory(); renderBudgets(); renderWeeklyReport(); scheduleSync(); }
-renderAll();
+renderAll();   // first paint from localStorage; scheduleSync no-ops until cloud load finishes
 const savedReport = load(LS.report, null);
 if (savedReport?.text) renderNarrative(savedReport.text, savedReport.ts);
 icons();
+hydrateFromCloud();   // then restore the saved snapshot from Supabase (deployed only)
 </script>
 </body>
 </html>

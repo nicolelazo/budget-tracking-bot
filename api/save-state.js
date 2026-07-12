@@ -21,10 +21,14 @@ module.exports = async (req, res) => {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    // NOTE: secrets are deliberately NOT stored here. The Anthropic API key and the
+    // Telegram bot token stay in the user's browser only (this is a shared row).
+    // We persist the working data + non-secret setup so any device restores itself.
     const snapshot = {
       hist: Array.isArray(body.hist) ? body.hist : [],
       budgets: Array.isArray(body.budgets) ? body.budgets : [],
-      telegram: body.telegram || {},
+      telegram: body.telegram || {},          // chat id only (no bot token)
+      settings: (body.settings && typeof body.settings === 'object') ? body.settings : {},
     };
     const r = await fetch(`${SUPABASE_URL}/rest/v1/budget_dashboard_state`, {
       method: 'POST',
