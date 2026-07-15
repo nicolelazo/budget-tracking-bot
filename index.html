@@ -137,7 +137,7 @@
     <!-- ===== TELEGRAM WEEKLY BOT ===== -->
     <div class="bg-white rounded-xl shadow p-5 mt-6">
       <h2 class="font-semibold flex items-center gap-2 mb-1"><i data-lucide="send" class="w-4 h-4 text-indigo-500"></i>Telegram Weekly Bot</h2>
-      <p class="text-xs text-slate-500 mb-4">Sends the report above to your group chat every Monday (09:00 PH) via a Vercel Cron — no browser needed once cloud sync is on and the server env vars are set.</p>
+      <p class="text-xs text-slate-500 mb-4">Sends the report above to your group chat every weekday (Mon–Fri, 09:00 PH) via a Vercel Cron — no browser needed once cloud sync is on and the server env vars are set.</p>
       <div class="grid md:grid-cols-2 gap-5">
         <div class="space-y-3">
           <label class="block"><span class="text-xs text-slate-500">Bot token <span class="text-slate-400">(for the “Send test” button only — the cron uses the server env var)</span></span>
@@ -170,7 +170,7 @@
           </ul>
           <b class="block mt-2">Getting the chat ID:</b> add the bot to the group, send any message, then open
           <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> and copy <code>chat.id</code>.
-          <p class="mt-2">The Monday schedule lives in <code>vercel.json</code> (<code>0 1 * * 1</code> UTC = 09:00 PH). Redeploy after adding the env vars.</p>
+          <p class="mt-2">The weekday schedule lives in <code>vercel.json</code> (<code>0 1 * * 1-5</code> UTC = 09:00 PH, Mon–Fri). Redeploy after adding the env vars.</p>
           </div>
         </details>
       </div>

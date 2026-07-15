@@ -1,7 +1,7 @@
 /* GET /api/weekly-report
    Reads the latest dashboard snapshot from Supabase, builds the weekly finance
    report, and sends it to the Telegram group. Triggered by Vercel Cron every
-   Monday (see vercel.json "crons"). Can also be called manually with ?key=<APP_SYNC_SECRET>.
+   weekday (Mon–Fri, see vercel.json "crons"). Can also be called manually with ?key=<APP_SYNC_SECRET>.
 
    Required env vars:
      SUPABASE_URL, SUPABASE_SERVICE_KEY   (read the snapshot)
