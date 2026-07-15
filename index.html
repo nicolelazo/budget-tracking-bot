@@ -149,6 +149,7 @@
             <span><b>Cloud storage</b> (recommended) — saves your history, budgets and setup so they reload automatically on any device, and lets the Monday cron send the report with no browser open. Your data stays until you delete it. <span class="text-slate-400">Secrets (API key, bot token) are never stored in the cloud — only in this browser.</span></span>
           </label>
           <div class="flex gap-2 flex-wrap">
+            <button id="tgPreview" class="border border-indigo-300 text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1" title="See exactly how the Telegram message will look before sending — nothing is sent"><i data-lucide="eye" class="w-4 h-4"></i>Preview message</button>
             <button id="tgTest" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="send-horizontal" class="w-4 h-4"></i>Send test report now</button>
             <button id="tgSyncNow" class="border border-slate-300 px-3 py-1.5 rounded-lg text-sm">Sync now</button>
           </div>
@@ -172,6 +173,13 @@
           <p class="mt-2">The Monday schedule lives in <code>vercel.json</code> (<code>0 1 * * 1</code> UTC = 09:00 PH). Redeploy after adding the env vars.</p>
           </div>
         </details>
+      </div>
+      <!-- Telegram message preview -->
+      <div id="tgPreviewBox" class="hidden mt-5 border-t border-slate-100 pt-4">
+        <p class="text-xs text-slate-500 mb-2 flex items-center gap-1"><i data-lucide="eye" class="w-3.5 h-3.5"></i>This is exactly what will be sent to your group — <b>nothing has been sent</b>.</p>
+        <div class="bg-[#e6ebee] rounded-xl p-4 flex">
+          <div id="tgPreviewBubble" class="bg-white rounded-2xl rounded-tl-sm shadow-sm px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-800 max-w-md whitespace-pre-wrap break-words"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -1117,6 +1125,19 @@ $('tgTest').addEventListener('click', async () => {
     toast('Could not reach Telegram: ' + e.message, 'error');
   }
   btn.disabled = false; btn.innerHTML = '<i data-lucide="send-horizontal" class="w-4 h-4"></i>Send test report now'; icons();
+});
+
+$('tgPreview').addEventListener('click', () => {
+  const box = $('tgPreviewBox');
+  // Toggle off if already showing.
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  // The exact HTML string that gets POSTed to Telegram (parse_mode:HTML).
+  // formatTelegram only emits <b> tags + escaped entities, so it's safe to
+  // render as-is; whitespace-pre-wrap turns the \n line breaks into real ones.
+  $('tgPreviewBubble').innerHTML = BudgetReport.formatTelegram(weeklyReport());
+  box.classList.remove('hidden');
+  icons();
+  box.scrollIntoView({ behavior:'smooth', block:'nearest' });
 });
 
 /* ================= GMAIL AUTO-INGESTION ================= */
