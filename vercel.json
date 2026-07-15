@@ -4,6 +4,6 @@
   "installCommand": null,
   "outputDirectory": ".",
   "crons": [
-    { "path": "/api/weekly-report", "schedule": "0 1 * * 1-5" }
+    { "path": "/api/weekly-report", "schedule": "0 1 * * 1" }
   ]
 }
