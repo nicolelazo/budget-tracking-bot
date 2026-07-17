@@ -59,7 +59,7 @@
   <p class="px-5 pb-2 text-[10px] uppercase tracking-wider text-slate-500">Menu</p>
   <button class="tab-btn active flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="overview" title="Your totals, reports, and the weekly Telegram summary"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dashboard</button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="receipt" title="Upload a receipt photo or PDF and let AI read it"><i data-lucide="scan-line" class="w-4 h-4"></i>Scan a Receipt</button>
-  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail" title="Auto-read liquidation & cash-advance form emails"><i data-lucide="inbox" class="w-4 h-4"></i>Email Submissions<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
+  <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="gmail" title="Auto-read liquidation & seed-fund form emails"><i data-lucide="inbox" class="w-4 h-4"></i>Email Submissions<span id="gmailBadge" class="hidden ml-auto bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="budget" title="Set each chapter's budget and watch what's left"><i data-lucide="piggy-bank" class="w-4 h-4"></i>Budgets</button>
   <button class="tab-btn flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-800 text-left" data-tab="history" title="Everything you've logged, with search and export"><i data-lucide="history" class="w-4 h-4"></i>History</button>
   <div class="mt-auto px-5 text-[10px] text-slate-500">R&amp;D Prototype v2 · claude-opus-4-8</div>
@@ -227,7 +227,7 @@
   <!-- ============ TAB: GMAIL ============ -->
   <section id="tab-gmail" class="tab-panel hidden">
     <h1 class="text-2xl font-bold mb-1">Email Submissions</h1>
-    <p class="text-sm text-slate-500 mb-5">Reads your Gmail (view-only) for the Google Form emails your chapters submit — liquidations and cash-advance requests — and logs them for you. It pulls the amount and details from the email, <b>and</b> automatically opens any receipt file or linked Google Sheet attached to the form so nothing is missed. Each one gets a short AI summary. Nothing is ever changed or sent from your inbox.</p>
+    <p class="text-sm text-slate-500 mb-5">Reads your Gmail (view-only) for the Google Form emails your chapters submit — liquidations and Seed Fund requests — and logs them for you. It pulls the amount and details from the email, <b>and</b> automatically opens any receipt file or linked Google Sheet attached to the form so nothing is missed. Each one gets a short AI summary. Nothing is ever changed or sent from your inbox.</p>
     <div class="grid lg:grid-cols-3 gap-6">
       <div class="bg-white rounded-xl shadow p-5 space-y-3">
         <h2 class="font-semibold flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-indigo-500"></i>Connection Settings</h2>
@@ -289,7 +289,7 @@
       <h1 class="text-2xl font-bold">Extraction Logs &amp; History</h1>
       <div class="flex gap-2 flex-wrap">
         <input id="histSearch" placeholder="Search..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-52">
-        <select id="histType" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All types</option><option>Image</option><option>Email</option><option>CA Request</option></select>
+        <select id="histType" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All types</option><option>Image</option><option>Email</option><option value="Seed Fund">Seed Fund</option></select>
         <select id="histStatus" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All statuses</option><option>Success</option><option>Flagged</option></select>
         <select id="histLiq" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm" title="Filter by liquidation status"><option value="">All liquidation states</option><option value="liquidated">Liquidated</option><option value="awaiting">Awaiting liquidation</option></select>
         <button id="exportCsv" class="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i>Export CSV <span id="selCount" class="hidden bg-indigo-500 text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
@@ -324,7 +324,16 @@ const LS = { key:'anthropic_api_key', hist:'liquidation_history', bud:'chapter_b
   tgtoken:'telegram_bot_token', tgchat:'telegram_chat_id', sync:'cloud_sync_enabled' };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-let hist = load(LS.hist, []);
+/* "Seed Fund" = a member's funding request that must later be liquidated — NOT a
+   Cash Advance. Older data stored these under the label 'CA Request'; normalize
+   them on load so the whole app speaks one term. */
+function normalizeHist(arr){
+  let changed = false;
+  (arr || []).forEach(h => { if (h && h.type === 'CA Request') { h.type = 'Seed Fund'; changed = true; } });
+  if (changed) { try { save(LS.hist, arr); } catch {} }
+  return arr || [];
+}
+let hist = normalizeHist(load(LS.hist, []));
 let budgets = load(LS.bud, []);
 let queue = [];
 
@@ -655,7 +664,7 @@ async function commitCAEntry(f, copy = true, extra = {}){
   if (copy) await copyText(CA_FIELDS.map(([k]) => f[k]).join('\t'));
   const flags = auditCA(f).concat(extra.extraFlags || []);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.requestor_name,
-    invoice: '', amount: num(f.amount_requested) ?? 0, type: 'CA Request',
+    invoice: '', amount: num(f.amount_requested) ?? 0, type: 'Seed Fund',
     status: flags.length ? 'Flagged' : 'Success', flags, resolved: false, included: true, data: f,
     summary: extra.summary || '', attachments: extra.attachments || [] });
   save(LS.hist, hist); renderAll();
@@ -671,8 +680,11 @@ document.querySelectorAll('.copyHeader').forEach(b => b.addEventListener('click'
 /* Entries excluded from the finance report don't count toward any money totals.
    Entries saved before this feature existed have no 'included' key → treated as included. */
 const inReport = h => h.included !== false;
-/* A scanned receipt or emailed liquidation (not a Cash Advance request). */
-const isLiqType = h => h.type !== 'CA Request';
+/* Seed Fund = a member's funding request that gets liquidated (NOT a Cash Advance).
+   Accept the legacy 'CA Request' label too, in case any un-normalized entry slips through. */
+const isSeedFund = h => h.type === 'Seed Fund' || h.type === 'CA Request';
+/* A scanned receipt or emailed liquidation. */
+const isLiqType = h => !isSeedFund(h);
 /* Scanning/emailing alone does NOT liquidate. An entry only counts as liquidated
    once a human explicitly confirms it here (h.liquidated === true). Everything
    else — new entries, and older entries with no flag — stays "awaiting
@@ -774,7 +786,7 @@ function renderHistory(){
     <td class="p-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${h.status==='Flagged' && !h.resolved ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${h.status==='Flagged' && h.resolved ? 'Resolved' : h.status}</span></td>
     <td class="p-3">${isLiqType(h)
       ? `<button class="text-[11px] px-2 py-0.5 rounded-full ${isLiquidated(h) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}" onclick="toggleLiquidated('${h.id}')" title="${isLiquidated(h) ? 'Marked liquidated — click to move back to Awaiting liquidation' : 'Awaiting liquidation — click once this item is in your liquidation sheet to confirm it'}">${isLiquidated(h) ? '✓ Liquidated' : 'Awaiting'}</button>`
-      : '<span class="text-[11px] text-slate-400" title="Cash Advance requests are tracked over email, not liquidated here">—</span>'}</td>
+      : '<span class="text-[11px] text-slate-400" title="Seed Fund requests are the money advanced — they are what liquidations are counted against, not liquidated themselves">—</span>'}</td>
     <td class="p-3"><button class="text-[11px] px-2 py-0.5 rounded-full ${inReport(h) ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}" onclick="toggleReport('${h.id}')" title="Click to ${inReport(h) ? 'exclude from' : 'include in'} the finance report">${inReport(h) ? 'Included' : 'Excluded'}</button></td>
     <td class="p-3 text-right whitespace-nowrap">
       <button class="text-indigo-600 text-xs mr-2" onclick="viewEntry('${h.id}')">View</button>
@@ -784,7 +796,7 @@ function renderHistory(){
 }
 window.viewEntry = id => {
   const h = hist.find(x => x.id === id); if (!h) return;
-  const fields = h.type === 'CA Request' ? CA_FIELDS : LIQ_FIELDS;
+  const fields = isSeedFund(h) ? CA_FIELDS : LIQ_FIELDS;
   const atts = (h.attachments || []).filter(a => a.url);
   openModal(`<h2 class="font-bold text-lg mb-1">${h.type} · ${new Date(h.ts).toLocaleString()}</h2>
     ${h.summary ? `<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-slate-700 mb-3"><b class="text-indigo-700">Summary:</b> ${esc(h.summary)}</div>` : ''}
@@ -818,8 +830,8 @@ window.delEntry = id => {
 };
 
 /* Export in the EXACT master-sheet format: liquidations → the 17 columns in order,
-   CA requests → separate 8-column file. Exports selected entries; if none are
-   ticked, exports whatever the current filters show. */
+   Seed Fund requests → separate 8-column file. Exports selected entries; if none
+   are ticked, exports whatever the current filters show. */
 $('exportCsv').addEventListener('click', () => {
   const csvCell = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
   const downloadCsv = (lines, name) => {
@@ -831,17 +843,17 @@ $('exportCsv').addEventListener('click', () => {
   const chosen = histSel.size ? visible.filter(h => histSel.has(h.id)) : visible;
   if (!chosen.length) return toast('Nothing to export — tick entries (or loosen the filters).', 'warn');
   const stamp = new Date().toISOString().slice(0,10);
-  const liq = chosen.filter(h => h.type !== 'CA Request');
-  const ca = chosen.filter(h => h.type === 'CA Request');
+  const liq = chosen.filter(isLiqType);
+  const seed = chosen.filter(isSeedFund);
   if (liq.length) downloadCsv([
     LIQ_FIELDS.map(([,l]) => csvCell(l)).join(','),
     ...liq.map(h => LIQ_FIELDS.map(([k]) => csvCell(h.data?.[k])).join(',')),
   ], `liquidations_${stamp}.csv`);
-  if (ca.length) downloadCsv([
+  if (seed.length) downloadCsv([
     CA_FIELDS.map(([,l]) => csvCell(l)).join(','),
-    ...ca.map(h => CA_FIELDS.map(([k]) => csvCell(h.data?.[k])).join(',')),
-  ], `ca_requests_${stamp}.csv`);
-  toast(`Exported ${chosen.length} ${histSel.size ? 'selected' : 'filtered'} entr${chosen.length === 1 ? 'y' : 'ies'} in master-sheet format${ca.length && liq.length ? ' (2 files)' : ''}.`);
+    ...seed.map(h => CA_FIELDS.map(([k]) => csvCell(h.data?.[k])).join(',')),
+  ], `seed_fund_requests_${stamp}.csv`);
+  toast(`Exported ${chosen.length} ${histSel.size ? 'selected' : 'filtered'} entr${chosen.length === 1 ? 'y' : 'ies'} in master-sheet format${seed.length && liq.length ? ' (2 files)' : ''}.`);
 });
 $('clearAll').addEventListener('click', () => {
   if (confirm('Clear ALL history entries?') && confirm('This cannot be undone. Really clear everything?')) {
@@ -854,15 +866,15 @@ function renderDashboard(){
   const rep = hist.filter(inReport);   // money metrics count only report-included entries
   const liq = rep.filter(isLiquidated);          // confirmed liquidated only
   const awaiting = rep.filter(isAwaiting);        // scanned/emailed, not yet confirmed
-  const ca = rep.filter(h => h.type === 'CA Request');
+  const seed = rep.filter(isSeedFund);            // seed fund requests (money advanced)
   const excluded = hist.length - rep.length;
   const flagsOpen = hist.filter(h => h.status === 'Flagged' && !h.resolved).length;
   const rate = hist.length ? Math.round(hist.filter(h => h.status === 'Success').length / hist.length * 100) : 100;
   const cards = [
     ['file-check-2', 'Total Submissions', hist.length + (excluded ? ` <span class="text-xs font-normal text-slate-400">(${excluded} excluded)</span>` : ''), 'text-indigo-500'],
+    ['sprout', 'Seed Fund Advanced (PHP)', php(seed.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
     ['banknote', 'Total Liquidated (PHP)', php(liq.reduce((s,h) => s + h.amount, 0)), 'text-emerald-500'],
     ['hourglass', 'Awaiting Liquidation (PHP)', php(awaiting.reduce((s,h) => s + h.amount, 0)) + (awaiting.length ? ` <span class="text-xs font-normal text-slate-400">(${awaiting.length})</span>` : ''), 'text-amber-500'],
-    ['hand-coins', 'Total CA Requested (PHP)', php(ca.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
     ['flag', 'Pending Audit Flags', flagsOpen, flagsOpen ? 'text-amber-500' : 'text-slate-400'],
     ['badge-check', 'Success Rate', rate + '%', 'text-emerald-500'],
   ];
@@ -871,12 +883,12 @@ function renderDashboard(){
     <p class="text-xs text-slate-500 mt-2">${l}</p><p class="text-xl font-bold mt-0.5 break-words">${v}</p></div>`).join('');
 
   $('activityFeed').innerHTML = hist.slice(0,5).map(h => `<div class="flex items-start gap-3 border-b border-slate-50 pb-2">
-    <i data-lucide="${h.type==='Image'?'scan-line':h.type==='CA Request'?'hand-coins':'mail'}" class="w-4 h-4 text-slate-400 mt-0.5"></i>
+    <i data-lucide="${h.type==='Image'?'scan-line':isSeedFund(h)?'sprout':'mail'}" class="w-4 h-4 text-slate-400 mt-0.5"></i>
     <div class="flex-1 min-w-0"><p class="truncate">${esc(h.name) || esc(h.chapter) || '(unnamed)'}</p>
     ${h.summary ? `<p class="text-[11px] text-slate-500 line-clamp-2">${esc(h.summary)}</p>` : ''}
     <p class="text-[11px] text-slate-400">${new Date(h.ts).toLocaleString()}</p></div>
     <span class="text-sm font-medium whitespace-nowrap">${php(h.amount)}</span>
-    <span class="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${isLiqType(h)?(isLiquidated(h)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'):'bg-sky-100 text-sky-700'}">${isLiqType(h)?(isLiquidated(h)?'Liquidation · ✓':'Liquidation · Awaiting'):'Cash Advance'}</span>
+    <span class="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${isLiqType(h)?(isLiquidated(h)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'):'bg-sky-100 text-sky-700'}">${isLiqType(h)?(isLiquidated(h)?'Liquidation · ✓':'Liquidation · Awaiting'):'Seed Fund'}</span>
     <button class="text-slate-300 hover:text-red-500 shrink-0" onclick="delEntry('${h.id}')" title="Delete this entry (e.g. accidental duplicate)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
   </div>`).join('') || '<p class="text-slate-400 text-sm">Nothing processed yet.</p>';
 
@@ -900,7 +912,7 @@ function reportData(){
   const rep = hist.filter(inReport);
   const liq = rep.filter(isLiquidated);       // confirmed liquidated only
   const awaiting = rep.filter(isAwaiting);     // scanned/emailed, awaiting confirmation
-  const ca = rep.filter(h => h.type === 'CA Request');
+  const seed = rep.filter(isSeedFund);         // seed fund requests (money advanced)
   const sum = arr => arr.reduce((s,h) => s + (h.amount || 0), 0);
   const byChapter = {};
   liq.forEach(h => { const c = h.chapter || '(no chapter)'; byChapter[c] = (byChapter[c]||0) + (h.amount||0); });
@@ -914,9 +926,10 @@ function reportData(){
       pct: b.allocated > 0 ? Math.round(spent / b.allocated * 100) : 0 };
   });
   return {
-    totalLiquidated: sum(liq), totalCARequested: sum(ca),
+    totalLiquidated: sum(liq), totalSeedFund: sum(seed),
     totalAwaiting: sum(awaiting), awaitingCount: awaiting.length,
-    liqCount: liq.length, caCount: ca.length, excludedCount: hist.length - rep.length,
+    outstanding: Math.round((sum(seed) - sum(liq)) * 100) / 100,
+    liqCount: liq.length, seedCount: seed.length, excludedCount: hist.length - rep.length,
     openFlags: flags.length,
     byChapter: Object.entries(byChapter).sort((a,b) => b[1]-a[1]),
     byCategory: Object.entries(byCategory).sort((a,b) => b[1]-a[1]),
@@ -945,7 +958,7 @@ function renderReportStats(){
     <div class="md:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600">${php(d.totalLiquidated)}</p><p class="text-[10px] text-slate-400">${d.liqCount} entr${d.liqCount===1?'y':'ies'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${d.awaitingCount?'text-amber-600':'text-slate-500'}">${php(d.totalAwaiting)}</p><p class="text-[10px] text-slate-400">${d.awaitingCount} item${d.awaitingCount===1?'':'s'}</p></div>
-      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">CA Requested</p><p class="font-bold text-sky-600">${php(d.totalCARequested)}</p><p class="text-[10px] text-slate-400">${d.caCount} request${d.caCount===1?'':'s'}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Seed Fund Advanced</p><p class="font-bold text-sky-600">${php(d.totalSeedFund)}</p><p class="text-[10px] text-slate-400">${d.seedCount} request${d.seedCount===1?'':'s'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${d.openFlags?'text-amber-600':'text-slate-500'}">${d.openFlags}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Over Budget</p><p class="font-bold ${overBudget.length?'text-red-600':'text-slate-500'}">${overBudget.length}</p><p class="text-[10px] text-slate-400">chapter${overBudget.length===1?'':'s'}</p></div>
     </div>`;
@@ -972,9 +985,9 @@ function miniMd(md){
   return html || '<p class="text-slate-400">No content.</p>';
 }
 
-const REPORT_SYSTEM = `You are a finance officer writing a concise internal finance report for a nonprofit's chapter liquidation and cash-advance program.
+const REPORT_SYSTEM = `You are a finance officer writing a concise internal finance report for a nonprofit's chapter liquidation and seed-fund program.
 You are given aggregated JSON figures computed from the logged submissions. Write a clear, professional report in markdown with these sections:
-## Overview — totals confirmed-liquidated vs awaiting liquidation (scanned/emailed but not yet marked liquidated), plus cash-advance requested and submission counts.
+## Overview — seed fund advanced vs confirmed-liquidated (and the outstanding balance), plus how much is still awaiting liquidation (scanned/emailed but not yet marked liquidated) and submission counts.
 ## Spending Highlights — which chapters and categories drive spending; note any concentration.
 ## Budget Status — chapters approaching or exceeding their allocation (call these out explicitly).
 ## Flags & Follow-ups — summarize open audit flags and what should be reviewed.
@@ -988,7 +1001,7 @@ function renderNarrative(text, ts){
 
 $('genReport').addEventListener('click', async () => {
   const d = reportData();
-  if (!d.liqCount && !d.caCount) return toast('No entries yet — process some emails or receipts first.', 'warn');
+  if (!d.liqCount && !d.seedCount && !d.awaitingCount) return toast('No entries yet — process some emails or receipts first.', 'warn');
   const btn = $('genReport');
   btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>Generating...'; icons();
   try {
@@ -1026,35 +1039,41 @@ const currentState = () => ({
 });
 const weeklyReport = () => BudgetReport.buildWeeklyReport(currentState(), Date.now());
 
+const dueBadge = { overdue:'bg-red-100 text-red-700', 'due-soon':'bg-amber-100 text-amber-700',
+  upcoming:'bg-slate-100 text-slate-600', 'no-date':'bg-slate-100 text-slate-400' };
 function pendRow(p){
+  const when = p.dueDate
+    ? (p.daysUntil < 0 ? `${-p.daysUntil}d overdue` : p.daysUntil === 0 ? 'due today' : `in ${p.daysUntil}d`)
+    : 'no due date';
   return `<tr class="border-t border-slate-50">
-    <td class="py-1.5 pr-2 font-medium align-top">${esc(p.chapter)}</td>
-    <td class="py-1.5 pr-2 text-slate-500"><span class="block text-[11px] truncate max-w-[20rem]">${esc(p.label)}</span></td>
-    <td class="py-1.5 text-right whitespace-nowrap font-medium align-top">${php(p.amount)}</td>
+    <td class="py-1.5 pr-2"><span class="font-medium">${esc(p.chapter)}</span><span class="block text-[11px] text-slate-400 truncate max-w-[16rem]">${esc(p.label)}</span></td>
+    <td class="py-1.5 text-right whitespace-nowrap">${php(p.outstanding)}<span class="block text-[10px] text-slate-400">of ${php(p.requested)}</span></td>
+    <td class="py-1.5 text-right whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-full ${dueBadge[p.status]}">${esc(when)}</span>${p.dueDate ? `<span class="block text-[10px] text-slate-400">${esc(p.dueDate)}</span>` : ''}</td>
   </tr>`;
 }
 function renderWeeklyReport(){
   if (!window.BudgetReport) return;
   const r = weeklyReport();
   const t = r.totals;
-  const cards = `<div class="grid grid-cols-3 gap-3 text-center mb-4">
+  const cards = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
+    <div class="bg-sky-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Seed Fund Advanced</p><p class="font-bold text-sky-600 break-words">${php(t.seedAdvanced)}</p><p class="text-[10px] text-slate-400">${t.seedCount} request${t.seedCount===1?'':'s'}</p></div>
     <div class="bg-emerald-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600 break-words">${php(t.liquidated)}</p><p class="text-[10px] text-slate-400">${t.liqCount} entr${t.liqCount===1?'y':'ies'}</p></div>
+    <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Outstanding</p><p class="font-bold ${t.outstanding>0?'text-amber-600':'text-slate-500'} break-words">${php(t.outstanding)}</p></div>
     <div class="bg-amber-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${t.awaitingCount?'text-amber-600':'text-slate-500'} break-words">${php(t.awaitingAmount)}</p><p class="text-[10px] text-slate-400">${t.awaitingCount} item${t.awaitingCount===1?'':'s'}</p></div>
-    <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${r.weekly.openFlags?'text-amber-600':'text-slate-500'} break-words">${r.weekly.openFlags}</p></div>
   </div>`;
   const pendingTable = r.pending.length
-    ? `<table class="w-full"><thead><tr class="text-[11px] text-slate-400 text-left"><th class="pb-1">Chapter</th><th class="pb-1">Details</th><th class="pb-1 text-right">Amount</th></tr></thead>
+    ? `<table class="w-full"><thead><tr class="text-[11px] text-slate-400 text-left"><th class="pb-1">Chapter / Program</th><th class="pb-1 text-right">Outstanding</th><th class="pb-1 text-right">Liquidation due</th></tr></thead>
        <tbody>${r.pending.map(pendRow).join('')}</tbody></table>`
-    : '<p class="text-emerald-600 text-sm">✅ Nothing awaiting liquidation — every submission has been confirmed.</p>';
+    : '<p class="text-emerald-600 text-sm">✅ No pending liquidations — every seed fund is accounted for.</p>';
   const overB = r.overBudget.length
     ? `<div class="mt-4 bg-red-50 border border-red-100 rounded-lg p-3 text-xs text-red-700"><b>🚨 Over budget:</b> ${r.overBudget.map(b => `${esc(b.chapter)} (${php(b.spent)} of ${php(b.allocated)})`).join(', ')}</div>`
     : '';
   $('weeklyReport').innerHTML = cards
-    + `<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Awaiting Liquidation <span class="normal-case font-normal text-slate-400">— scanned/emailed but not yet marked liquidated; you confirm these in your own sheet</span></h3>${pendingTable}`
+    + `<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Seed Funds Pending Liquidation &amp; Due Dates</h3>${pendingTable}`
     + `<div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs border-t border-slate-100 pt-3">
         <div><p class="text-slate-400">New (7d)</p><p class="font-semibold">${r.weekly.newSubmissions}</p></div>
         <div><p class="text-slate-400">Liquidated (7d)</p><p class="font-semibold">${php(r.weekly.newLiquidated)}</p></div>
-        <div><p class="text-slate-400">Awaiting (7d)</p><p class="font-semibold">${php(r.weekly.newAwaiting)}</p></div>
+        <div><p class="text-slate-400">New seed funds (7d)</p><p class="font-semibold">${php(r.weekly.newSeed)}</p></div>
         <div><p class="text-slate-400">Open flags</p><p class="font-semibold ${r.weekly.openFlags?'text-amber-600':''}">${r.weekly.openFlags}</p></div>
       </div>` + overB;
   icons();
@@ -1075,7 +1094,7 @@ function scheduleSync(){
 
 /* Overwrite local state with a snapshot pulled from the cloud, then repaint. */
 function applyCloudSnapshot(d){
-  if (Array.isArray(d.hist)) { hist = d.hist; save(LS.hist, hist); }
+  if (Array.isArray(d.hist)) { hist = normalizeHist(d.hist); save(LS.hist, hist); }
   if (Array.isArray(d.budgets)) { budgets = d.budgets; save(LS.bud, budgets); }
   const s = d.settings || {};
   if (typeof s.gClientId === 'string') { localStorage.setItem(LS.gcid, s.gClientId); $('gClientId').value = s.gClientId; }
@@ -1178,7 +1197,7 @@ const gBodies = {};                    // messageId -> plain-text body cache
 /* Combined classify + extract schema: doc_type + summary + union of both field sets */
 function comboSchema(){
   const props = { doc_type: { type:'string', enum:['liquidation','ca_request','other'],
-    description:'liquidation = chapter liquidation/expense/receipt submission; ca_request = Cash Advance request; other = anything else' },
+    description:'liquidation = chapter liquidation/expense/receipt submission; ca_request = a Seed Fund request (a member/chapter requesting funds that must later be liquidated); other = anything else' },
     summary: { type:'string', description:'A concise 1–2 sentence plain-English summary of this submission: who, which chapter, what it is for, and the amount. Empty string if doc_type is other.' } };
   [...LIQ_FIELDS, ...CA_FIELDS].forEach(([k,l]) => { if (!props[k]) props[k] = propFor(k, l); });
   return { type:'object', properties: props, required: Object.keys(props), additionalProperties:false };
@@ -1188,9 +1207,9 @@ const COMBO_SYSTEM = `You are a meticulous finance encoder for a nonprofit's cha
 You receive the text of an email notification (usually a Google Forms response summary).
 Step 1 — classify doc_type:
 - 'liquidation' if it is a chapter liquidation / expense / receipt submission
-- 'ca_request' if it is a Cash Advance (CA) request
+- 'ca_request' if it is a Seed Fund request (a member/chapter requesting funds from the org that must later be liquidated)
 - 'other' for anything else (confirmations, newsletters, unrelated mail)
-Subject hints: emails titled "[DEVCON Form] ... Request for Chapter Event Support or Programs Event Seed Fund from HQ National Office" are 'ca_request'; the same form title containing "Liquidation" is 'liquidation'.
+Subject hints: emails titled "[DEVCON Form] ... Request for Chapter Event Support or Programs Event Seed Fund from HQ National Office" are 'ca_request' (a Seed Fund request); the same form title containing "Liquidation" is 'liquidation'.
 Step 2 — extract the fields belonging to that document type into the schema.
 Step 3 — write a concise 1–2 sentence 'summary' of the submission in plain English (who / which chapter / what it is for / the amount). If a receipt image or PDF is also provided, prefer the figures visible on the receipt over the typed form values when they disagree, and note any discrepancy in the summary.
 Rules:
@@ -1412,10 +1431,10 @@ window.gProcess = async id => {
       const f = {}; CA_FIELDS.forEach(([k]) => f[k] = data[k] ?? '');
       const flags = await commitCAEntry(f, false, { summary: data.summary, attachments, extraFlags: warnings });
       gProcessed[id] = 'processed';
-      toast(flags.length ? `CA request logged (FLAGGED: ${flags[0]})` : `CA request logged: ${m.subject}`, flags.length ? 'warn' : 'success');
+      toast(flags.length ? `Seed Fund request logged (FLAGGED: ${flags[0]})` : `Seed Fund request logged: ${m.subject}`, flags.length ? 'warn' : 'success');
     } else {
       gProcessed[id] = 'skipped';
-      toast(`Not a liquidation/CA email — skipped: ${m.subject}`, 'info');
+      toast(`Not a liquidation/seed-fund email — skipped: ${m.subject}`, 'info');
     }
     save(LS.gproc, gProcessed);
   } catch (e) {

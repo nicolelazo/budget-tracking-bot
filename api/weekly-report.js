@@ -52,10 +52,12 @@ module.exports = async (req, res) => {
 
     res.status(200).json({
       sent: true,
+      seedAdvanced: report.totals.seedAdvanced,
       liquidated: report.totals.liquidated,
-      liqCount: report.totals.liqCount,
+      outstanding: report.totals.outstanding,
+      pending: report.pending.length,
+      overdue: report.due.overdue.length,
       awaiting: report.totals.awaitingCount,
-      awaitingAmount: report.totals.awaitingAmount,
       overBudget: report.overBudget.length,
     });
   } catch (e) {
