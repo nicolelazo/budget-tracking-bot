@@ -872,7 +872,7 @@ function renderDashboard(){
   const rate = hist.length ? Math.round(hist.filter(h => h.status === 'Success').length / hist.length * 100) : 100;
   const cards = [
     ['file-check-2', 'Total Submissions', hist.length + (excluded ? ` <span class="text-xs font-normal text-slate-400">(${excluded} excluded)</span>` : ''), 'text-indigo-500'],
-    ['sprout', 'Seed Fund Advanced (PHP)', php(seed.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
+    ['sprout', 'Seed Fund (PHP)', php(seed.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
     ['banknote', 'Total Liquidated (PHP)', php(liq.reduce((s,h) => s + h.amount, 0)), 'text-emerald-500'],
     ['hourglass', 'Awaiting Liquidation (PHP)', php(awaiting.reduce((s,h) => s + h.amount, 0)) + (awaiting.length ? ` <span class="text-xs font-normal text-slate-400">(${awaiting.length})</span>` : ''), 'text-amber-500'],
     ['flag', 'Pending Audit Flags', flagsOpen, flagsOpen ? 'text-amber-500' : 'text-slate-400'],
@@ -958,7 +958,7 @@ function renderReportStats(){
     <div class="md:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600">${php(d.totalLiquidated)}</p><p class="text-[10px] text-slate-400">${d.liqCount} entr${d.liqCount===1?'y':'ies'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${d.awaitingCount?'text-amber-600':'text-slate-500'}">${php(d.totalAwaiting)}</p><p class="text-[10px] text-slate-400">${d.awaitingCount} item${d.awaitingCount===1?'':'s'}</p></div>
-      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Seed Fund Advanced</p><p class="font-bold text-sky-600">${php(d.totalSeedFund)}</p><p class="text-[10px] text-slate-400">${d.seedCount} request${d.seedCount===1?'':'s'}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Seed Fund</p><p class="font-bold text-sky-600">${php(d.totalSeedFund)}</p><p class="text-[10px] text-slate-400">${d.seedCount} request${d.seedCount===1?'':'s'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${d.openFlags?'text-amber-600':'text-slate-500'}">${d.openFlags}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Over Budget</p><p class="font-bold ${overBudget.length?'text-red-600':'text-slate-500'}">${overBudget.length}</p><p class="text-[10px] text-slate-400">chapter${overBudget.length===1?'':'s'}</p></div>
     </div>`;
@@ -987,7 +987,7 @@ function miniMd(md){
 
 const REPORT_SYSTEM = `You are a finance officer writing a concise internal finance report for a nonprofit's chapter liquidation and seed-fund program.
 You are given aggregated JSON figures computed from the logged submissions. Write a clear, professional report in markdown with these sections:
-## Overview — seed fund advanced vs confirmed-liquidated (and the outstanding balance), plus how much is still awaiting liquidation (scanned/emailed but not yet marked liquidated) and submission counts.
+## Overview — seed fund vs confirmed-liquidated (and the outstanding balance), plus how much is still awaiting liquidation (scanned/emailed but not yet marked liquidated) and submission counts.
 ## Spending Highlights — which chapters and categories drive spending; note any concentration.
 ## Budget Status — chapters approaching or exceeding their allocation (call these out explicitly).
 ## Flags & Follow-ups — summarize open audit flags and what should be reviewed.
@@ -1056,7 +1056,7 @@ function renderWeeklyReport(){
   const r = weeklyReport();
   const t = r.totals;
   const cards = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
-    <div class="bg-sky-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Seed Fund Advanced</p><p class="font-bold text-sky-600 break-words">${php(t.seedAdvanced)}</p><p class="text-[10px] text-slate-400">${t.seedCount} request${t.seedCount===1?'':'s'}</p></div>
+    <div class="bg-sky-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Seed Fund</p><p class="font-bold text-sky-600 break-words">${php(t.seedAdvanced)}</p><p class="text-[10px] text-slate-400">${t.seedCount} request${t.seedCount===1?'':'s'}</p></div>
     <div class="bg-emerald-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600 break-words">${php(t.liquidated)}</p><p class="text-[10px] text-slate-400">${t.liqCount} entr${t.liqCount===1?'y':'ies'}</p></div>
     <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Outstanding</p><p class="font-bold ${t.outstanding>0?'text-amber-600':'text-slate-500'} break-words">${php(t.outstanding)}</p></div>
     <div class="bg-amber-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${t.awaitingCount?'text-amber-600':'text-slate-500'} break-words">${php(t.awaitingAmount)}</p><p class="text-[10px] text-slate-400">${t.awaitingCount} item${t.awaitingCount===1?'':'s'}</p></div>
