@@ -87,7 +87,7 @@
         </div>
         <div class="bg-slate-50 rounded-lg p-4">
           <div class="flex items-center gap-2 font-medium mb-1"><span class="bg-slate-900 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center">2</span>Get expenses in</div>
-          <p class="text-slate-500 text-xs leading-relaxed">Three ways: <b>Scan a Receipt</b> (photo/PDF), <b>Email Submissions</b> (reads Google Form emails for you), or type them by hand. Everything lands in <b>History</b>.</p>
+          <p class="text-slate-500 text-xs leading-relaxed">Three ways: <b>Scan a Receipt</b> (photo/PDF), <b>Email Submissions</b> (reads Google Form emails for you), or type them by hand. Everything lands in <b>History</b> as <b>Awaiting liquidation</b> — scanning or emailing does <b>not</b> mark it liquidated. Once you've recorded it in your own liquidation sheet, click the <b>Awaiting → ✓ Liquidated</b> toggle in History to make it count.</p>
         </div>
         <div class="bg-slate-50 rounded-lg p-4">
           <div class="flex items-center gap-2 font-medium mb-1"><span class="bg-slate-900 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center">3</span>Track &amp; report</div>
@@ -97,7 +97,7 @@
       <p class="text-[11px] text-slate-400 mt-3">Tip: hover any section title or button for a short explanation. Nothing here is sent anywhere except the AI service and — only if you turn it on — your own Telegram group.</p>
     </details>
 
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6" id="metricCards"></div>
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6" id="metricCards"></div>
     <div class="grid lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-xl shadow p-5">
         <h2 class="font-semibold mb-3 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-indigo-500"></i>Recent Activity</h2>
@@ -291,6 +291,7 @@
         <input id="histSearch" placeholder="Search..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-52">
         <select id="histType" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All types</option><option>Image</option><option>Email</option><option>CA Request</option></select>
         <select id="histStatus" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm"><option value="">All statuses</option><option>Success</option><option>Flagged</option></select>
+        <select id="histLiq" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm" title="Filter by liquidation status"><option value="">All liquidation states</option><option value="liquidated">Liquidated</option><option value="awaiting">Awaiting liquidation</option></select>
         <button id="exportCsv" class="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i>Export CSV <span id="selCount" class="hidden bg-indigo-500 text-[10px] px-1.5 py-0.5 rounded-full"></span></button>
         <button id="delSelected" class="hidden bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i>Delete Selected</button>
         <button id="clearAll" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-sm">Clear All</button>
@@ -299,7 +300,7 @@
     <div class="bg-white rounded-xl shadow overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-slate-50 text-slate-500 text-left">
-          <tr><th class="p-3 w-8"><input id="histSelAll" type="checkbox" class="accent-indigo-600" title="Select all (filtered)"></th><th class="p-3">Timestamp</th><th class="p-3">Chapter</th><th class="p-3">Name</th><th class="p-3">Invoice #</th><th class="p-3 text-right">Amount</th><th class="p-3">Type</th><th class="p-3">Status</th><th class="p-3" title="Whether this entry counts toward the dashboard finance report and budget totals">In report</th><th class="p-3"></th></tr>
+          <tr><th class="p-3 w-8"><input id="histSelAll" type="checkbox" class="accent-indigo-600" title="Select all (filtered)"></th><th class="p-3">Timestamp</th><th class="p-3">Chapter</th><th class="p-3">Name</th><th class="p-3">Invoice #</th><th class="p-3 text-right">Amount</th><th class="p-3">Type</th><th class="p-3">Status</th><th class="p-3" title="Scanning/emailing does not liquidate. Click to confirm once the item is in your liquidation sheet.">Liquidation</th><th class="p-3" title="Whether this entry counts toward the dashboard finance report and budget totals">In report</th><th class="p-3"></th></tr>
         </thead>
         <tbody id="histRows"></tbody>
       </table>
@@ -630,7 +631,7 @@ async function commitLiqEntry(f, type, copy = true, extra = {}){
   const flags = auditLiq(f).concat(extra.extraFlags || []);
   hist.unshift({ id: uid(), ts: new Date().toISOString(), chapter: f.chapter, name: f.establishment_name,
     invoice: f.invoice_number, amount: num(f.amount) ?? 0, type, status: flags.length ? 'Flagged' : 'Success',
-    flags, resolved: false, included: true, data: f,
+    flags, resolved: false, included: true, liquidated: false, data: f,
     summary: extra.summary || '', attachments: extra.attachments || [] });
   save(LS.hist, hist);
   const b = budgets.find(x => x.chapter.toLowerCase() === (f.chapter||'').toLowerCase());
@@ -670,8 +671,17 @@ document.querySelectorAll('.copyHeader').forEach(b => b.addEventListener('click'
 /* Entries excluded from the finance report don't count toward any money totals.
    Entries saved before this feature existed have no 'included' key → treated as included. */
 const inReport = h => h.included !== false;
+/* A scanned receipt or emailed liquidation (not a Cash Advance request). */
+const isLiqType = h => h.type !== 'CA Request';
+/* Scanning/emailing alone does NOT liquidate. An entry only counts as liquidated
+   once a human confirms it here (h.liquidated === true). New entries are saved
+   with liquidated:false ("awaiting liquidation"); legacy entries without the key
+   are grandfathered as liquidated, mirroring the inReport convention. */
+const isLiquidated = h => isLiqType(h) && h.liquidated !== false;
+const isAwaiting   = h => isLiqType(h) && h.liquidated === false;
+/* Only confirmed liquidations spend a chapter's budget. */
 const spentFor = chapter => hist
-  .filter(h => inReport(h) && h.type !== 'CA Request' && (h.chapter||'').toLowerCase() === chapter.toLowerCase())
+  .filter(h => inReport(h) && isLiquidated(h) && (h.chapter||'').toLowerCase() === chapter.toLowerCase())
   .reduce((s, h) => s + (h.amount || 0), 0);
 
 function renderBudgets(){
@@ -717,7 +727,7 @@ function budgetModal(b){
 }
 
 /* ================= HISTORY ================= */
-['histSearch','histType','histStatus'].forEach(id => $(id).addEventListener('input', renderHistory));
+['histSearch','histType','histStatus','histLiq'].forEach(id => $(id).addEventListener('input', renderHistory));
 const histSel = new Set();
 function updateSelCount(){
   $('selCount').textContent = histSel.size + ' selected';
@@ -746,9 +756,10 @@ $('histSelAll').addEventListener('change', e => {
   updateSelCount();
 });
 function filteredHist(){
-  const q = $('histSearch').value.toLowerCase(), t = $('histType').value, s = $('histStatus').value;
+  const q = $('histSearch').value.toLowerCase(), t = $('histType').value, s = $('histStatus').value, lq = $('histLiq').value;
   return hist.filter(h =>
     (!t || h.type === t) && (!s || h.status === s) &&
+    (!lq || (lq === 'liquidated' ? isLiquidated(h) : isAwaiting(h))) &&
     (!q || [h.chapter, h.name, h.invoice, h.type].join(' ').toLowerCase().includes(q)));
 }
 function renderHistory(){
@@ -761,6 +772,9 @@ function renderHistory(){
     <td class="p-3">${esc(h.invoice) || '—'}</td><td class="p-3 text-right">${php(h.amount)}</td>
     <td class="p-3"><span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100">${h.type}</span></td>
     <td class="p-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${h.status==='Flagged' && !h.resolved ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${h.status==='Flagged' && h.resolved ? 'Resolved' : h.status}</span></td>
+    <td class="p-3">${isLiqType(h)
+      ? `<button class="text-[11px] px-2 py-0.5 rounded-full ${isLiquidated(h) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}" onclick="toggleLiquidated('${h.id}')" title="${isLiquidated(h) ? 'Marked liquidated — click to move back to Awaiting liquidation' : 'Awaiting liquidation — click once this item is in your liquidation sheet to confirm it'}">${isLiquidated(h) ? '✓ Liquidated' : 'Awaiting'}</button>`
+      : '<span class="text-[11px] text-slate-400" title="Cash Advance requests are tracked over email, not liquidated here">—</span>'}</td>
     <td class="p-3"><button class="text-[11px] px-2 py-0.5 rounded-full ${inReport(h) ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}" onclick="toggleReport('${h.id}')" title="Click to ${inReport(h) ? 'exclude from' : 'include in'} the finance report">${inReport(h) ? 'Included' : 'Excluded'}</button></td>
     <td class="p-3 text-right whitespace-nowrap">
       <button class="text-indigo-600 text-xs mr-2" onclick="viewEntry('${h.id}')">View</button>
@@ -785,6 +799,15 @@ window.toggleReport = id => {
   h.included = !inReport(h);
   save(LS.hist, hist); renderAll();
   toast(h.included ? 'Entry now counts toward the finance report.' : 'Entry excluded from the finance report (still kept in history).', 'info');
+};
+/* Human-controlled liquidation confirmation. A scanned/emailed item is only
+   counted as liquidated (dashboard totals, budget spend, weekly report) once
+   someone clicks this — because the actual liquidation is done in your own sheet. */
+window.toggleLiquidated = id => {
+  const h = hist.find(x => x.id === id); if (!h || !isLiqType(h)) return;
+  h.liquidated = !isLiquidated(h);
+  save(LS.hist, hist); renderAll();
+  toast(h.liquidated ? 'Marked as liquidated — it now counts toward liquidated totals.' : 'Moved back to Awaiting liquidation — no longer counted as liquidated.', 'info');
 };
 window.delEntry = id => {
   if (!confirm('Delete this entry?')) return;
@@ -829,7 +852,8 @@ $('clearAll').addEventListener('click', () => {
 /* ================= DASHBOARD ================= */
 function renderDashboard(){
   const rep = hist.filter(inReport);   // money metrics count only report-included entries
-  const liq = rep.filter(h => h.type !== 'CA Request');
+  const liq = rep.filter(isLiquidated);          // confirmed liquidated only
+  const awaiting = rep.filter(isAwaiting);        // scanned/emailed, not yet confirmed
   const ca = rep.filter(h => h.type === 'CA Request');
   const excluded = hist.length - rep.length;
   const flagsOpen = hist.filter(h => h.status === 'Flagged' && !h.resolved).length;
@@ -837,6 +861,7 @@ function renderDashboard(){
   const cards = [
     ['file-check-2', 'Total Submissions', hist.length + (excluded ? ` <span class="text-xs font-normal text-slate-400">(${excluded} excluded)</span>` : ''), 'text-indigo-500'],
     ['banknote', 'Total Liquidated (PHP)', php(liq.reduce((s,h) => s + h.amount, 0)), 'text-emerald-500'],
+    ['hourglass', 'Awaiting Liquidation (PHP)', php(awaiting.reduce((s,h) => s + h.amount, 0)) + (awaiting.length ? ` <span class="text-xs font-normal text-slate-400">(${awaiting.length})</span>` : ''), 'text-amber-500'],
     ['hand-coins', 'Total CA Requested (PHP)', php(ca.reduce((s,h) => s + h.amount, 0)), 'text-sky-500'],
     ['flag', 'Pending Audit Flags', flagsOpen, flagsOpen ? 'text-amber-500' : 'text-slate-400'],
     ['badge-check', 'Success Rate', rate + '%', 'text-emerald-500'],
@@ -873,7 +898,8 @@ function renderDashboard(){
    source of truth for both the on-screen stats and the AI narrative. */
 function reportData(){
   const rep = hist.filter(inReport);
-  const liq = rep.filter(h => h.type !== 'CA Request');
+  const liq = rep.filter(isLiquidated);       // confirmed liquidated only
+  const awaiting = rep.filter(isAwaiting);     // scanned/emailed, awaiting confirmation
   const ca = rep.filter(h => h.type === 'CA Request');
   const sum = arr => arr.reduce((s,h) => s + (h.amount || 0), 0);
   const byChapter = {};
@@ -889,6 +915,7 @@ function reportData(){
   });
   return {
     totalLiquidated: sum(liq), totalCARequested: sum(ca),
+    totalAwaiting: sum(awaiting), awaitingCount: awaiting.length,
     liqCount: liq.length, caCount: ca.length, excludedCount: hist.length - rep.length,
     openFlags: flags.length,
     byChapter: Object.entries(byChapter).sort((a,b) => b[1]-a[1]),
@@ -915,8 +942,9 @@ function renderReportStats(){
       <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Spending by Particular / Category</p>
       <table class="w-full"><tbody>${catRows}</tbody></table>
     </div>
-    <div class="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+    <div class="md:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600">${php(d.totalLiquidated)}</p><p class="text-[10px] text-slate-400">${d.liqCount} entr${d.liqCount===1?'y':'ies'}</p></div>
+      <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${d.awaitingCount?'text-amber-600':'text-slate-500'}">${php(d.totalAwaiting)}</p><p class="text-[10px] text-slate-400">${d.awaitingCount} item${d.awaitingCount===1?'':'s'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">CA Requested</p><p class="font-bold text-sky-600">${php(d.totalCARequested)}</p><p class="text-[10px] text-slate-400">${d.caCount} request${d.caCount===1?'':'s'}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${d.openFlags?'text-amber-600':'text-slate-500'}">${d.openFlags}</p></div>
       <div class="bg-slate-50 rounded-lg p-2"><p class="text-[11px] text-slate-500">Over Budget</p><p class="font-bold ${overBudget.length?'text-red-600':'text-slate-500'}">${overBudget.length}</p><p class="text-[10px] text-slate-400">chapter${overBudget.length===1?'':'s'}</p></div>
@@ -946,7 +974,7 @@ function miniMd(md){
 
 const REPORT_SYSTEM = `You are a finance officer writing a concise internal finance report for a nonprofit's chapter liquidation and cash-advance program.
 You are given aggregated JSON figures computed from the logged submissions. Write a clear, professional report in markdown with these sections:
-## Overview — totals liquidated vs cash-advance requested, and submission counts.
+## Overview — totals confirmed-liquidated vs awaiting liquidation (scanned/emailed but not yet marked liquidated), plus cash-advance requested and submission counts.
 ## Spending Highlights — which chapters and categories drive spending; note any concentration.
 ## Budget Status — chapters approaching or exceeding their allocation (call these out explicitly).
 ## Flags & Follow-ups — summarize open audit flags and what should be reviewed.
@@ -998,40 +1026,35 @@ const currentState = () => ({
 });
 const weeklyReport = () => BudgetReport.buildWeeklyReport(currentState(), Date.now());
 
-const dueBadge = { overdue:'bg-red-100 text-red-700', 'due-soon':'bg-amber-100 text-amber-700',
-  upcoming:'bg-slate-100 text-slate-600', 'no-date':'bg-slate-100 text-slate-400' };
 function pendRow(p){
-  const when = p.dueDate
-    ? (p.daysUntil < 0 ? `${-p.daysUntil}d overdue` : p.daysUntil === 0 ? 'due today' : `in ${p.daysUntil}d`)
-    : 'no due date';
   return `<tr class="border-t border-slate-50">
-    <td class="py-1.5 pr-2"><span class="font-medium">${esc(p.chapter)}</span><span class="block text-[11px] text-slate-400 truncate max-w-[16rem]">${esc(p.label)}</span></td>
-    <td class="py-1.5 text-right whitespace-nowrap">${php(p.outstanding)}<span class="block text-[10px] text-slate-400">of ${php(p.requested)}</span></td>
-    <td class="py-1.5 text-right whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-full ${dueBadge[p.status]}">${esc(when)}</span>${p.dueDate ? `<span class="block text-[10px] text-slate-400">${esc(p.dueDate)}</span>` : ''}</td>
+    <td class="py-1.5 pr-2 font-medium align-top">${esc(p.chapter)}</td>
+    <td class="py-1.5 pr-2 text-slate-500"><span class="block text-[11px] truncate max-w-[20rem]">${esc(p.label)}</span></td>
+    <td class="py-1.5 text-right whitespace-nowrap font-medium align-top">${php(p.amount)}</td>
   </tr>`;
 }
 function renderWeeklyReport(){
   if (!window.BudgetReport) return;
   const r = weeklyReport();
   const t = r.totals;
-  const advVsLiq = `<div class="grid grid-cols-3 gap-3 text-center mb-4">
-    <div class="bg-sky-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Cash Advances</p><p class="font-bold text-sky-600 break-words">${php(t.cashAdvanced)}</p><p class="text-[10px] text-slate-400">${t.caCount} request${t.caCount===1?'':'s'}</p></div>
+  const cards = `<div class="grid grid-cols-3 gap-3 text-center mb-4">
     <div class="bg-emerald-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Liquidated</p><p class="font-bold text-emerald-600 break-words">${php(t.liquidated)}</p><p class="text-[10px] text-slate-400">${t.liqCount} entr${t.liqCount===1?'y':'ies'}</p></div>
-    <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Outstanding</p><p class="font-bold ${t.outstanding>0?'text-amber-600':'text-slate-500'} break-words">${php(t.outstanding)}</p></div>
+    <div class="bg-amber-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Awaiting Liquidation</p><p class="font-bold ${t.awaitingCount?'text-amber-600':'text-slate-500'} break-words">${php(t.awaitingAmount)}</p><p class="text-[10px] text-slate-400">${t.awaitingCount} item${t.awaitingCount===1?'':'s'}</p></div>
+    <div class="bg-slate-50 rounded-lg p-3"><p class="text-[11px] text-slate-500">Open Flags</p><p class="font-bold ${r.weekly.openFlags?'text-amber-600':'text-slate-500'} break-words">${r.weekly.openFlags}</p></div>
   </div>`;
   const pendingTable = r.pending.length
-    ? `<table class="w-full"><thead><tr class="text-[11px] text-slate-400 text-left"><th class="pb-1">Chapter / Program</th><th class="pb-1 text-right">Outstanding</th><th class="pb-1 text-right">Liquidation due</th></tr></thead>
+    ? `<table class="w-full"><thead><tr class="text-[11px] text-slate-400 text-left"><th class="pb-1">Chapter</th><th class="pb-1">Details</th><th class="pb-1 text-right">Amount</th></tr></thead>
        <tbody>${r.pending.map(pendRow).join('')}</tbody></table>`
-    : '<p class="text-emerald-600 text-sm">✅ No pending liquidations — every cash advance is accounted for.</p>';
+    : '<p class="text-emerald-600 text-sm">✅ Nothing awaiting liquidation — every submission has been confirmed.</p>';
   const overB = r.overBudget.length
     ? `<div class="mt-4 bg-red-50 border border-red-100 rounded-lg p-3 text-xs text-red-700"><b>🚨 Over budget:</b> ${r.overBudget.map(b => `${esc(b.chapter)} (${php(b.spent)} of ${php(b.allocated)})`).join(', ')}</div>`
     : '';
-  $('weeklyReport').innerHTML = advVsLiq
-    + `<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Cash Advances Pending Liquidation &amp; Due Dates</h3>${pendingTable}`
+  $('weeklyReport').innerHTML = cards
+    + `<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Awaiting Liquidation <span class="normal-case font-normal text-slate-400">— scanned/emailed but not yet marked liquidated; you confirm these in your own sheet</span></h3>${pendingTable}`
     + `<div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs border-t border-slate-100 pt-3">
         <div><p class="text-slate-400">New (7d)</p><p class="font-semibold">${r.weekly.newSubmissions}</p></div>
         <div><p class="text-slate-400">Liquidated (7d)</p><p class="font-semibold">${php(r.weekly.newLiquidated)}</p></div>
-        <div><p class="text-slate-400">New cash advances (7d)</p><p class="font-semibold">${php(r.weekly.newCA)}</p></div>
+        <div><p class="text-slate-400">Awaiting (7d)</p><p class="font-semibold">${php(r.weekly.newAwaiting)}</p></div>
         <div><p class="text-slate-400">Open flags</p><p class="font-semibold ${r.weekly.openFlags?'text-amber-600':''}">${r.weekly.openFlags}</p></div>
       </div>` + overB;
   icons();
