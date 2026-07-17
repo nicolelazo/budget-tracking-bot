@@ -674,11 +674,11 @@ const inReport = h => h.included !== false;
 /* A scanned receipt or emailed liquidation (not a Cash Advance request). */
 const isLiqType = h => h.type !== 'CA Request';
 /* Scanning/emailing alone does NOT liquidate. An entry only counts as liquidated
-   once a human confirms it here (h.liquidated === true). New entries are saved
-   with liquidated:false ("awaiting liquidation"); legacy entries without the key
-   are grandfathered as liquidated, mirroring the inReport convention. */
-const isLiquidated = h => isLiqType(h) && h.liquidated !== false;
-const isAwaiting   = h => isLiqType(h) && h.liquidated === false;
+   once a human explicitly confirms it here (h.liquidated === true). Everything
+   else — new entries, and older entries with no flag — stays "awaiting
+   liquidation" until someone marks it. */
+const isLiquidated = h => isLiqType(h) && h.liquidated === true;
+const isAwaiting   = h => isLiqType(h) && h.liquidated !== true;
 /* Only confirmed liquidations spend a chapter's budget. */
 const spentFor = chapter => hist
   .filter(h => inReport(h) && isLiquidated(h) && (h.chapter||'').toLowerCase() === chapter.toLowerCase())
@@ -876,7 +876,7 @@ function renderDashboard(){
     ${h.summary ? `<p class="text-[11px] text-slate-500 line-clamp-2">${esc(h.summary)}</p>` : ''}
     <p class="text-[11px] text-slate-400">${new Date(h.ts).toLocaleString()}</p></div>
     <span class="text-sm font-medium whitespace-nowrap">${php(h.amount)}</span>
-    <span class="text-[10px] px-2 py-0.5 rounded-full ${h.status==='Flagged'&&!h.resolved?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'}">${h.status}</span>
+    <span class="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${isLiqType(h)?(isLiquidated(h)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'):'bg-sky-100 text-sky-700'}">${isLiqType(h)?(isLiquidated(h)?'Liquidation · ✓':'Liquidation · Awaiting'):'Cash Advance'}</span>
     <button class="text-slate-300 hover:text-red-500 shrink-0" onclick="delEntry('${h.id}')" title="Delete this entry (e.g. accidental duplicate)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
   </div>`).join('') || '<p class="text-slate-400 text-sm">Nothing processed yet.</p>';
 
